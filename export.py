@@ -41,9 +41,193 @@ EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 tiled_client = from_profile("nsls2", username=None)["chx"]
 tiled_client_raw = tiled_client["raw"]
 
+
+def delete_data(  old_path, new_path = '/tmp_data/data/'  ):
+    '''YG Dev July@CHX
+    Delete copied Eiger file containing master and data in a new path
+    old_path: the full path of the Eiger master file
+    new_path: the new path
+    '''
+    import shutil,glob
+    #old_path = sud[2][0]
+    #new_path = '/tmp_data/data/'
+    fps = glob.glob( old_path[:-10] + '*' )
+    for fp in tqdm(fps):
+        nfp = new_path + os.path.basename(fp)
+        if os.path.exists( nfp ):
+            os.remove( nfp )
+
+
+def copy_data( old_path, new_path = '/tmp_data/data/'  ):
+    '''YG Dev July@CHX
+    Copy Eiger file containing master and data files to a new path
+    old_path: the full path of the Eiger master file
+    new_path: the new path
+    '''
+    import shutil,glob
+    #old_path = sud[2][0]
+    #new_path = '/tmp_data/data/'
+    fps = glob.glob( old_path[:-10] + '*' )
+    for fp in tqdm(fps):
+        if not os.path.exists( new_path + os.path.basename(fp)):
+            shutil.copy( fp, new_path )
+    print('The files %s are copied: %s.'%( old_path[:-10] + '*' , new_path + os.path.basename(fp) ) )
+
+
+def get_eigerImage_per_file( data_fullpath ):
+    f= h5py.File(data_fullpath)
+    dset_keys = list(f['/entry/data'].keys())
+    dset_keys.sort()
+    dset_root="/entry/data"
+    dset_keys = [dset_root + "/" + dset_key for dset_key in dset_keys]
+    dset = f[dset_keys[0]]
+    return  len(dset)
+
+
+def reverse_updown( imgs):
+    '''reverse imgs upside down to produce a generator
+    Usuages:
+    imgsr = reverse_updown( imgs)
+    '''
+    return pims.pipeline(lambda img: img[::-1,:])(imgs)  # lazily apply mask
+
+
+def rot90_clockwise( imgs):
+    '''reverse imgs upside down to produce a generator
+    Usuages:
+    imgsr = rot90_clockwise( imgs)
+    '''
+    return pims.pipeline(lambda img: np.rot90(img)  )(imgs)  # lazily apply mask
+
+
+def get_sid_filenames(header):
+    """YG. Dev Jan, 2016
+    Get a bluesky scan_id, unique_id, filename by giveing uid
+    Parameters
+    ----------
+    header: a header of a bluesky scan, e.g. db[-1]
+    Returns
+    -------
+    scan_id: integer
+    unique_id: string, a full string of a uid
+    filename: sring
+    Usuage:
+    sid,uid, filenames   = get_sid_filenames(db[uid])
+    """
+    from collections import defaultdict
+    from glob import glob
+    from pathlib import Path
+
+    filepaths = []
+    resources = {}  # uid: document
+    datums = defaultdict(list)  # uid: List(document)
+    for name, doc in header.documents():
+        if name == "resource":
+            resources[doc["uid"]] = doc
+        elif name == "datum":
+            datums[doc["resource"]].append(doc)
+        elif name == "datum_page":
+            for datum in event_model.unpack_datum_page(doc):
+                datums[datum["resource"]].append(datum)
+    for resource_uid, resource in resources.items():
+        file_prefix = Path(resource.get('root', '/'), resource["resource_path"])
+        if 'eiger' not in resource['spec'].lower():
+            continue
+        for datum in datums[resource_uid]:
+            dm_kw = datum["datum_kwargs"]
+            seq_id = dm_kw['seq_id']
+            new_filepaths = glob(f'{file_prefix!s}_{seq_id}*')
+            filepaths.extend(new_filepaths)
+    return header.start['scan_id'],  header.start['uid'], filepaths
+
+
+def load_data(uid, detector='eiger4m_single_image', fill=True, reverse=False, rot90=False):
+    """load bluesky scan data by giveing uid and detector
+    Parameters
+    ----------
+    uid: unique ID of a bluesky scan
+    detector: the used area detector
+    fill: True to fill data
+    reverse: if True, reverse the image upside down to match the "real" image geometry (should always be True in the future)
+    Returns
+    -------
+    image data: a pims frames series
+    if not success read the uid, will return image data as 0
+    Usuage:
+    imgs = load_data( uid, detector  )
+    md = imgs.md
+    """
+    hdr = db[uid]
+
+    if False:
+        ATTEMPTS = 0
+        for attempt in range(ATTEMPTS):
+            try:
+                ev, = hdr.events(fields=[detector], fill=fill)
+                break
+
+            except Exception:
+                print ('Trying again ...!')
+                if attempt == ATTEMPTS - 1:
+                    # We're out of attempts. Raise the exception to help with debugging.
+                    raise
+        else:
+            # We didn't succeed
+            raise Exception("Failed after {} repeated attempts".format(ATTEMPTS))
+
+    # TODO(mrakitin): replace with the lazy loader (when it's implemented):
+    imgs = list(hdr.data(detector))
+
+    if len(imgs[0])>=1:
+        md = imgs[0].md
+        imgs = pims.pipeline(lambda img: img)(imgs[0])
+        imgs.md = md
+
+    if reverse:
+        md = imgs.md
+        imgs = reverse_updown( imgs )  # Why not np.flipud?
+        imgs.md = md
+
+    if rot90:
+        md = imgs.md
+        imgs = rot90_clockwise( imgs )  # Why not np.flipud?
+        imgs.md = md
+
+    return imgs
+
+
+def get_detector( header ):
+    '''Get the first detector image string by giving header '''
+    keys = get_detectors(header)
+    for k in keys:
+        if 'eiger' in k:
+            return k
+
+
+def create_time_slice( N, slice_num, slice_width, edges=None ):
+    '''create a ROI time regions '''
+    if edges is not None:
+        time_edge = edges
+    else:
+        if slice_num==1:
+            time_edge =  [ [0,N] ]
+        else:
+            tstep = N // slice_num
+            te = np.arange( 0, slice_num +1   ) * tstep
+            tc = np.int_( (te[:-1] + te[1:])/2 )[1:-1]
+            if slice_width%2:
+                sw = slice_width//2 +1
+                time_edge =   [ [0,slice_width],  ] + [  [s-sw+1,s+sw] for s in tc  ] +  [ [N-slice_width,N]]
+            else:
+                sw= slice_width//2
+                time_edge =   [ [0,slice_width],  ] + [  [s-sw,s+sw] for s in tc  ] +  [ [N-slice_width,N]]
+    return np.array(time_edge)
+
+
 def run_dill_encoded(what):    
     fun, args = dill.loads(what)
     return fun(*args)
+
 
 def apply_async(pool, fun, args, callback=None):    
     return pool.apply_async( run_dill_encoded, (dill.dumps((fun, args)),), callback= callback)
@@ -60,6 +244,8 @@ def pass_FD(FD,n):
     except:
         pass
         return False
+
+
 def go_through_FD(FD): 
     if not pass_FD(FD,FD.beg):   
         for i in range(FD.beg, FD.end):
@@ -68,9 +254,6 @@ def go_through_FD(FD):
         pass
  
 
-
-            
-    
 def compress_eigerdata( images, mask, md, filename=None,  force_compress=False, 
                         bad_pixel_threshold=1e15, bad_pixel_low_threshold=0, 
                        hot_pixel_threshold=2**30, nobytes=2,bins=1, bad_frame_list=None,
@@ -139,8 +322,7 @@ def compress_eigerdata( images, mask, md, filename=None,  force_compress=False,
                             bad_pixel_threshold=bad_pixel_threshold, hot_pixel_threshold=hot_pixel_threshold, 
                        bad_pixel_low_threshold=bad_pixel_low_threshold ,bad_frame_list=bad_frame_list,with_pickle= with_pickle, direct_load_data= direct_load_data,data_path=data_path, images_per_file=images_per_file) 
 
-
-        
+       
 def read_compressed_eigerdata( mask, filename, beg, end,
                               bad_pixel_threshold=1e15, hot_pixel_threshold=2**30,
                              bad_pixel_low_threshold=0,bad_frame_list=None,with_pickle= False,
@@ -482,8 +664,8 @@ def create_compress_header( md, filename, nobytes=4, bins=1, rot90=False  ):
 def init_compress_eigerdata( images, mask, md, filename, 
                         bad_pixel_threshold=1e15, hot_pixel_threshold=2**30, 
                             bad_pixel_low_threshold=0,nobytes=4, bins=1, with_pickle=True,
-                            reverse =True, rot90=False,
-                           direct_load_data=False, data_path=None,images_per_file=100,
+                            reverse =True, rot90=False, direct_load_data=False,
+                            data_path=None,images_per_file=100,
                            ):    
     '''
         Compress the eiger data 
@@ -1262,5 +1444,5 @@ def sparsify(ref):
 # Make the Prefect Flow.
 # A separate command is needed to register it with the Prefect server.
 with Flow("export") as flow:
-    # raw_ref = Parameter("ref")
-    # processed_refs = write_dark_subtraction(raw_ref)
+    raw_ref = Parameter("ref")
+    processed_refs = sparsify(raw_ref)
