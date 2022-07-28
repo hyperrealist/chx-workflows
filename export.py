@@ -145,15 +145,22 @@ def get_sid_filenames(run):
 
 
 def load_data(
-    uid, detector="eiger4m_single_image", fill=True, reverse=False, rot90=False
+    run,
+    detector="eiger4m_single_image",
+    fill=True,
+    reverse=False,
+    rot90=False
 ):
-    """load bluesky scan data by giveing uid and detector
+    """
+    load bluesky scan data by giving uid and detector
+
     Parameters
     ----------
     uid: unique ID of a bluesky scan
     detector: the used area detector
     fill: True to fill data
     reverse: if True, reverse the image upside down to match the "real" image geometry (should always be True in the future)
+
     Returns
     -------
     image data: a pims frames series
@@ -162,26 +169,9 @@ def load_data(
     imgs = load_data( uid, detector  )
     md = imgs.md
     """
-    hdr = db[uid]
-
-    if False:
-        ATTEMPTS = 0
-        for attempt in range(ATTEMPTS):
-            try:
-                (ev,) = hdr.events(fields=[detector], fill=fill)
-                break
-
-            except Exception:
-                print("Trying again ...!")
-                if attempt == ATTEMPTS - 1:
-                    # We're out of attempts. Raise the exception to help with debugging.
-                    raise
-        else:
-            # We didn't succeed
-            raise Exception("Failed after {} repeated attempts".format(ATTEMPTS))
 
     # TODO(mrakitin): replace with the lazy loader (when it's implemented):
-    imgs = list(hdr.data(detector))
+    imgs = list(run['primary']['data'][detector])
 
     if len(imgs[0]) >= 1:
         md = imgs[0].md
@@ -1773,11 +1763,11 @@ def get_devices(run):
         descriptors = []
         for stream in run.values():
             descriptors.extend(stream.descriptors)
-        
+
         devices = set()
         for descriptor in descriptors:
             devices.update(descriptor['object_keys'])
-        
+
         return devices
 
 
@@ -1852,8 +1842,8 @@ def get_meta_data(run, default_dec="eiger", *argv, **kwargs):
     # md['detector'] = detector_name
     md["detector"] = get_detector(run)
     # print( md['detector'] )
-    
-    new_dict = get_divice_config(run, device_name)
+
+    new_dict = get_device_config(run, device_name)
     for key, val in new_dict.items():
         newkey = key.replace(detector_name + "_", "")
         md[newkey] = val
@@ -1876,10 +1866,9 @@ def get_meta_data(run, default_dec="eiger", *argv, **kwargs):
         "%Y-%m-%d %H:%M:%S", time.localtime(run.stop["time"])
     )
 
-    # TODO: Fix this.
     try:  # added: try to handle runs that don't contain image data
-        if "primary" in header.v2:
-            descriptor = header.v2["primary"].descriptors[0]
+        if "primary" in run.keys():
+            descriptor = run["primary"].descriptors[0]
             md["img_shape"] = descriptor["data_keys"][md["detector"]]["shape"][:2][::-1]
     except:
         if verbose:
@@ -1999,7 +1988,7 @@ def sparsify(
 
     print("Ref: %s is in processing..." % uid)
     if validate_uid(run):
-        md = get_meta_data(uid)
+        md = get_meta_data(run)
         imgs = load_data(uid, md["detector"], reverse=reverse, rot90=rot90)
         sud = get_sid_filenames(run)
         for pa in sud[2]:
