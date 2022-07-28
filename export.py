@@ -5,6 +5,7 @@ import shutil
 import sys
 import time
 
+from collections import defaultdict
 from contextlib import closing
 from datetime import datetime
 from multiprocessing import Pool
@@ -12,6 +13,7 @@ from pathlib import Path
 
 import chxtools
 import dill
+import event_model
 import gc
 import getpass
 import httpx
@@ -20,7 +22,6 @@ import numpy
 import numpy as np
 import pickle as pkl
 import prefect
-import pyCHX
 import skbeam.core.roi as roi
 import struct
 from tqdm import tqdm
@@ -29,7 +30,7 @@ from tqdm import tqdm
 # this is where the decision is made whether or not to use dask
 #from chxtools.handlers import EigerImages, EigerHandler
 from eiger_io.fs_handler import EigerHandler,EigerImages
-from glob import iglob
+from glob import glob, iglob
 from matplotlib.colors import LogNorm
 from prefect import Flow, Parameter, task
 from tiled.client import from_profile
@@ -38,6 +39,9 @@ EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 
 tiled_client = from_profile("nsls2", username=None)["chx"]
 tiled_client_raw = tiled_client["raw"]
+run1 = tiled_client_raw['d85d157f-57d9-4649-9b65-0d3b9f754e01']
+run2 = tiled_client_raw['e909f4a2-12e3-4521-a7a6-be2b728a826b']
+run3 = tiled_client_raw['b79184e1-d053-42e4-b1eb-f8ab0a146220']
 
 
 def delete_data(  old_path, new_path = '/tmp_data/data/'  ):
@@ -98,28 +102,25 @@ def rot90_clockwise( imgs):
     return pims.pipeline(lambda img: np.rot90(img)  )(imgs)  # lazily apply mask
 
 
-def get_sid_filenames(header):
-    """YG. Dev Jan, 2016
+def get_sid_filenames(run):
+    """
     Get a bluesky scan_id, unique_id, filename by giveing uid
+    
     Parameters
     ----------
-    header: a header of a bluesky scan, e.g. db[-1]
+    run: a BlueskyRun
+
     Returns
     -------
     scan_id: integer
     unique_id: string, a full string of a uid
-    filename: sring
-    Usuage:
-    sid,uid, filenames   = get_sid_filenames(db[uid])
+    filename: string
     """
-    from collections import defaultdict
-    from glob import glob
-    from pathlib import Path
 
     filepaths = []
     resources = {}  # uid: document
     datums = defaultdict(list)  # uid: List(document)
-    for name, doc in header.documents():
+    for name, doc in run.documents():
         if name == "resource":
             resources[doc["uid"]] = doc
         elif name == "datum":
@@ -136,7 +137,7 @@ def get_sid_filenames(header):
             seq_id = dm_kw['seq_id']
             new_filepaths = glob(f'{file_prefix!s}_{seq_id}*')
             filepaths.extend(new_filepaths)
-    return header.start['scan_id'],  header.start['uid'], filepaths
+    return run.start['scan_id'],  run.start['uid'], filepaths
 
 
 def load_data(uid, detector='eiger4m_single_image', fill=True, reverse=False, rot90=False):
@@ -1552,9 +1553,7 @@ def lookup_directory(start_doc, tla="chx"):
 
 @task
 def sparsify(
-    # ref,
-    uids,
-    mask,
+    ref,
     mask_dict=None,
     force_compress=False,
     para_compress=True,
@@ -1565,33 +1564,28 @@ def sparsify(
     ):
 
     """
-    Performs sparsification following Mark Sutton's implementation at CHX.
+    Performs sparsification/compression following Mark Sutton's implementation at CHX.
 
     Parameters
     ----------
     ref: string
         This is the reference to the BlueskyRun to be exported. It can be
         a partial uid, a full uid, a scan_id, or an index (e.g. -1).
-
-    """
-
-    """Compress time series data for a set of uids
-    Parameters:
-        uids: list, a list of uid
-        mask: bool array, mask array
-        force_compress: default is False, just load the compresssed data;
+    force_compress: default is False, just load the compresssed data;
                     if True, will compress it to overwrite the old compressed data
-        para_compress: apply the parallel compress algorithm
-        bin_frame_number:
-    Return:
-        None, save the compressed data in, by default, /XF11ID/analysis/Compressed_Data with filename as
+    para_compress: apply the parallel compress algorithm
+    bin_frame_number:
+
+    Return
+    ------
+    None, save the compressed data in, by default, /XF11ID/analysis/Compressed_Data with filename as
               '/uid_%s.cmp' uid is the full uid string
-
-    e.g.,  compress_multi_uids( uids, mask, force_compress= False,  bin_frame_number=1 )
-
     """
 
-    print("UID: %s is in processing..." % uid)
+    # Convert ref to uid.
+    uid = tiled_client[ref].start['uid']
+    mask = None
+    print("Ref: %s is in processing..." % uid)
     if validate_uid(uid):
         md = get_meta_data(uid)
         imgs = load_data(uid, md["detector"], reverse=reverse, rot90=rot90)
@@ -1638,5 +1632,5 @@ def sparsify(
 # Make the Prefect Flow.
 # A separate command is needed to register it with the Prefect server.
 with Flow("export") as flow:
-    raw_ref = Parameter("ref")
-    processed_refs = sparsify(raw_ref)
+    ref = Parameter("ref")
+    processed_refs = sparsify(ref)
