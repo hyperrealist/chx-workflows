@@ -12,15 +12,18 @@ from multiprocessing import Pool
 from pathlib import Path
 
 import chxtools
+import databroker
 import dill
 import event_model
 import gc
 import getpass
 import httpx
+import h5py
 import matplotlib.pyplot as plt
 import numpy
 import numpy as np
 import pickle as pkl
+import pims
 import prefect
 import skbeam.core.roi as roi
 import struct
@@ -37,13 +40,23 @@ from tiled.client import from_profile
 
 EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 
-tiled_client = from_profile("nsls2", username=None)["chx"]["raw"]
+# tiled_client = from_profile("nsls2", username=None)["chx"]["raw"]
+# run1 = tiled_client["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
+# run2 = tiled_client["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
+# run3 = tiled_client["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
+
+
+# db = databroker.from_profile("nsls2", username=None)['chx']['raw'].v0
+# header1 = db['d85d157f-57d9-4649-9b65-0d3b9f754e01']
+# header2 = db['e909f4a2-12e3-4521-a7a6-be2b728a826b']
+# header3 = db['b79184e1-d053-42e4-b1eb-f8ab0a146220']
+
+tiled_client = from_profile("chx", username=None, api_key=None)
 run1 = tiled_client["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
 run2 = tiled_client["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
 run3 = tiled_client["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
 
-
-def delete_data(old_path, new_path="/tmp_data/data/"):
+def delete_data(old_path, new_path="/nsls2/data/dssi/scratch/prefect-outputs/chx/new_path/"):
     """YG Dev July@CHX
     Delete copied Eiger file containing master and data in a new path
     old_path: the full path of the Eiger master file
@@ -60,7 +73,7 @@ def delete_data(old_path, new_path="/tmp_data/data/"):
             os.remove(nfp)
 
 
-def copy_data(old_path, new_path="/tmp_data/data/"):
+def copy_data(old_path, new_path="/nsls2/data/dssi/scratch/prefect-outputs/chx/new_path/"):
     """YG Dev July@CHX
     Copy Eiger file containing master and data files to a new path
     old_path: the full path of the Eiger master file
@@ -173,20 +186,20 @@ def load_data(
     # TODO(mrakitin): replace with the lazy loader (when it's implemented):
     imgs = list(run['primary']['data'][detector])
 
-    if len(imgs[0]) >= 1:
-        md = imgs[0].md
-        imgs = pims.pipeline(lambda img: img)(imgs[0])
-        imgs.md = md
+    # if len(imgs[0]) >= 1:
+        # md = imgs[0].md
+    imgs = pims.pipeline(lambda img: img)(imgs[0])
+        # imgs.md = md
 
     if reverse:
-        md = imgs.md
+        # md = imgs.md
         imgs = reverse_updown(imgs)  # Why not np.flipud?
-        imgs.md = md
+        # imgs.md = md
 
     if rot90:
-        md = imgs.md
+        # md = imgs.md
         imgs = rot90_clockwise(imgs)  # Why not np.flipud?
-        imgs.md = md
+        # imgs.md = md
 
     return imgs
 
@@ -286,7 +299,7 @@ def compress_eigerdata(
     data_path=None,
     images_per_file=100,
     copy_rawdata=True,
-    new_path="/tmp_data/data/",
+    new_path="/nsls2/data/dssi/scratch/prefect-outputs/chx/new_path/",
 ):
     """
     Init 2016, YG@CHX
@@ -499,7 +512,7 @@ def para_compress_eigerdata(
     data_path=None,
     images_per_file=100,
     copy_rawdata=True,
-    new_path="/tmp_data/data/",
+    new_path="/nsls2/data/dssi/scratch/prefect-outputs/chx/new_path/",
 ):
 
     data_path_ = data_path
@@ -1989,7 +2002,7 @@ def sparsify(
     print("Ref: %s is in processing..." % uid)
     if validate_uid(run):
         md = get_meta_data(run)
-        imgs = load_data(uid, md["detector"], reverse=reverse, rot90=rot90)
+        imgs = load_data(run, md["detector"], reverse=reverse, rot90=rot90)
         sud = get_sid_filenames(run)
         for pa in sud[2]:
             if "master.h5" in pa:
@@ -1998,12 +2011,12 @@ def sparsify(
         if mask_dict is not None:
             mask = mask_dict[md["detector"]]
             print("The detecotr is: %s" % md["detector"])
-        md.update(imgs.md)
+        # md.update(imgs.md)
         if not use_local_disk:
-            cmp_path = "/nsls2/xf11id1/analysis/Compressed_Data"
+            cmp_path = "/nsls2/data/dssi/scratch/prefect-outputs/chx/compressed_data"
         else:
-            cmp_path = "/tmp_data/compressed"
-        cmp_path = "/nsls2/xf11id1/analysis/Compressed_Data"
+            cmp_path = "/nsls2/data/dssi/scratch/prefect-outputs/chx/compressed_data"
+        cmp_path = "/nsls2/data/dssi/scratch/prefect-outputs/chx/compressed_data"
         if bin_frame_number == 1:
             cmp_file = "/uid_%s.cmp" % md["uid"]
         else:
