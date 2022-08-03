@@ -811,7 +811,7 @@ def segment_compress_eigerdata(
             img = np.array(np.average(images[t1:t2], axis=0), dtype=dtype)
         else:
             img = np.array(images[t1], dtype=dtype)
-        mask &= img < hot_pixel_threshold
+        mask = img < hot_pixel_threshold
         p = np.where((np.ravel(img) > 0) * np.ravel(mask))[0]  # don't use masked data
         v = np.ravel(np.array(img, dtype=dtype))[p]
         dlen = len(p)
@@ -1963,7 +1963,7 @@ def lookup_directory(start_doc, tla="chx"):
     return Path(paths[0])
 
 
-@task
+# @task
 def sparsify(
     ref,
     mask_dict=None,
@@ -2045,6 +2045,6 @@ def sparsify(
 
 # Make the Prefect Flow.
 # A separate command is needed to register it with the Prefect server.
-with Flow("export") as flow:
-    ref = Parameter("ref")
-    processed_refs = sparsify(ref)
+# with Flow("export") as flow:
+    # ref = Parameter("ref")
+    # processed_refs = sparsify(ref)
