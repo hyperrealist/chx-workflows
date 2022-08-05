@@ -1,4 +1,3 @@
-import json
 import os
 import re
 import shutil
@@ -6,17 +5,12 @@ import sys
 import time
 
 from collections import defaultdict
-from contextlib import closing
-from datetime import datetime
 from multiprocessing import Pool
 from pathlib import Path
 
-import chxtools
-import databroker
 import dill
 import event_model
-import gc
-import getpass
+import glob
 import httpx
 import h5py
 import matplotlib.pyplot as plt
@@ -32,9 +26,7 @@ from tqdm import tqdm
 # imports handler from CHX
 # this is where the decision is made whether or not to use dask
 # from chxtools.handlers import EigerImages, EigerHandler
-from eiger_io.fs_handler import EigerHandler, EigerImages
-from glob import glob, iglob
-from matplotlib.colors import LogNorm
+from eiger_io.fs_handler import EigerImages
 from prefect import Flow, Parameter, task
 from tiled.client import from_profile
 
@@ -65,10 +57,6 @@ def delete_data(
     old_path: the full path of the Eiger master file
     new_path: the new path
     """
-    import shutil, glob
-
-    # old_path = sud[2][0]
-    # new_path = '/tmp_data/data/'
     fps = glob.glob(old_path[:-10] + "*")
     for fp in tqdm(fps):
         nfp = new_path + os.path.basename(fp)
@@ -84,10 +72,6 @@ def copy_data(
     old_path: the full path of the Eiger master file
     new_path: the new path
     """
-    import shutil, glob
-
-    # old_path = sud[2][0]
-    # new_path = '/tmp_data/data/'
     fps = glob.glob(old_path[:-10] + "*")
     for fp in tqdm(fps):
         if not os.path.exists(new_path + os.path.basename(fp)):
@@ -113,7 +97,7 @@ def reverse_updown(imgs):
     Usuages:
     imgsr = reverse_updown( imgs)
     """
-    return pims.pipeline(lambda img: img[::-1,:])(imgs)  # lazily apply mask
+    return pims.pipeline(lambda img: img[::-1, :])(imgs)  # lazily apply mask
 
 
 def rot90_clockwise(imgs):
@@ -157,7 +141,7 @@ def get_sid_filenames(run):
         for datum in datums[resource_uid]:
             dm_kw = datum["datum_kwargs"]
             seq_id = dm_kw["seq_id"]
-            new_filepaths = glob(f"{file_prefix!s}_{seq_id}*")
+            new_filepaths = glob.glob(f"{file_prefix!s}_{seq_id}*")
             filepaths.extend(new_filepaths)
     return run.start["scan_id"], run.start["uid"], filepaths
 
@@ -270,6 +254,7 @@ def go_through_FD(FD):
 
 
 def compress_eigerdata(
+    run,
     images,
     mask,
     md,
@@ -309,21 +294,21 @@ def compress_eigerdata(
     else:
         if para_compress:
             images = "foo"
-            # para_compress=   True
-    # print( dtypes )
+
     if direct_load_data:
         images_per_file = get_eigerImage_per_file(data_path)
         if data_path is None:
-            sud = get_sid_filenames(db[uid])
+            sud = get_sid_filenames(run)
             data_path = sud[2][0]
     if force_compress:
         print("Create a new compress file with filename as:%s." % filename)
         if para_compress:
             # stop connection to be before forking... (let it reset again)
-            db.reg.disconnect()
-            db.mds.reset_connection()
+            # db.reg.disconnect()
+            # db.mds.reset_connection()
             print("Using a multiprocess to compress the data.")
             return para_compress_eigerdata(
+                run,
                 images,
                 mask,
                 md,
@@ -367,6 +352,7 @@ def compress_eigerdata(
             if para_compress:
                 print("Using a multiprocess to compress the data.")
                 return para_compress_eigerdata(
+                    run,
                     images,
                     mask,
                     md,
@@ -484,6 +470,7 @@ def read_compressed_eigerdata(
 
 
 def para_compress_eigerdata(
+    run,
     images,
     mask,
     md,
@@ -511,7 +498,7 @@ def para_compress_eigerdata(
     if dtypes == "uid":
         uid = md["uid"]  # images
         if not direct_load_data:
-            detector = get_detector(db[uid])
+            detector = get_detector(run)
             images_ = load_data(uid, detector, reverse=reverse, rot90=rot90)
         else:
             # print('Here for images_per_file: %s'%images_per_file)
@@ -557,6 +544,7 @@ def para_compress_eigerdata(
     # print( 'done for header here')
     # print(data_path_, images_per_file)
     results = para_segment_compress_eigerdata(
+        run,
         images=images,
         mask=mask,
         md=md,
@@ -582,8 +570,8 @@ def para_compress_eigerdata(
     good_count = 1
     for i in range(Nf):
         mask_, avg_img_, imgsum_, bad_frame_list_ = res_[i]
-        imgsum[i * num_sub: (i + 1) * num_sub] = imgsum_
-        bad_frame_list[i * num_sub: (i + 1) * num_sub] = bad_frame_list_
+        imgsum[i * num_sub : (i + 1) * num_sub] = imgsum_  # noqa: E203
+        bad_frame_list[i * num_sub : (i + 1) * num_sub] = bad_frame_list_  # noqa: E203
         if i == 0:
             mask = mask_
             avg_img = np.zeros_like(avg_img_)
@@ -631,6 +619,7 @@ def combine_binary_files(filename, old_files, del_old=False):
 
 
 def para_segment_compress_eigerdata(
+    run,
     images,
     mask,
     md,
@@ -655,7 +644,7 @@ def para_segment_compress_eigerdata(
     if dtypes == "uid":
         uid = md["uid"]  # images
         if not direct_load_data:
-            detector = get_detector(db[uid])
+            detector = get_detector(run)
             images_ = load_data(uid, detector, reverse=reverse, rot90=rot90)
         else:
             images_ = EigerImages(data_path, images_per_file, md)
@@ -698,15 +687,15 @@ def para_segment_compress_eigerdata(
             inputs = range(num_max_para_process * nr, Nf)
         else:
             inputs = range(num_max_para_process * nr, num_max_para_process * (nr + 1))
-        fns = [filename + "_temp-%i.tmp" % i for i in inputs]
         # print( nr, inputs, )
         pool = Pool(processes=len(inputs))  # , maxtasksperchild=1000 )
-        # print( inputs )
+        print("POOL")
         for i in inputs:
             if i * num_sub <= N:
                 result[i] = pool.apply_async(
                     segment_compress_eigerdata,
                     [
+                        get_detector(run),
                         images,
                         mask,
                         md,
@@ -734,6 +723,7 @@ def para_segment_compress_eigerdata(
 
 
 def segment_compress_eigerdata(
+    detector,
     images,
     mask,
     md,
@@ -759,7 +749,6 @@ def segment_compress_eigerdata(
     if dtypes == "uid":
         uid = md["uid"]  # images
         if not direct_load_data:
-            detector = get_detector(db[uid])
             images = load_data(uid, detector, reverse=reverse, rot90=rot90)[N1:N2]
         else:
             images = EigerImages(data_path, images_per_file, md)[N1:N2]
@@ -773,7 +762,6 @@ def segment_compress_eigerdata(
     Nimg_ = len(images)
     M, N = images[0].shape
     avg_img = np.zeros([M, N], dtype=np.float)
-    Nopix = float(avg_img.size)
     n = 0
     good_count = 0
     # frac = 0.0
@@ -1175,7 +1163,6 @@ class Multifile:
             "cols_end",
         ]
 
-        magic = struct.unpack("@16s", br[:16])
         md_temp = struct.unpack("@8d7I916x", br[16:])
         self.md = dict(zip(ms_keys, md_temp))
 
@@ -1314,12 +1301,12 @@ class Multifile_Bins(object):
             # print (n)
             t1, t2 = self.time_edge[n]
             # print( t1, t2)
-            self.frames[:,:, n] = get_avg_imgc(
+            self.frames[:, :, n] = get_avg_imgc(
                 FD, beg=t1, end=t2, sampling=1, show_progress=False
             )
 
     def rdframe(self, n):
-        return self.frames[:,:, n]
+        return self.frames[:, :, n]
 
     def rdrawframe(self, n):
         x_ = np.ravel(self.rdframe(n))
@@ -1379,7 +1366,7 @@ class MultifileBNL:
         while cur < file_bytes:
             self.frame_indexes.append(cur)
             # first get dlen, 4 bytes
-            dlen = np.frombuffer(self._fd[cur: cur + 4], dtype="<u4")[0]
+            dlen = np.frombuffer(self._fd[cur : cur + 4], dtype="<u4")[0]  # noqa: E203
             # print("found {} bytes".format(dlen))
             # self.nbytes is number of bytes per val
             cur += 4 + dlen * (4 + self.nbytes)
@@ -1402,7 +1389,7 @@ class MultifileBNL:
         # read in bytes
         # header is always from zero
         cur = 0
-        header_raw = self._fd[cur: cur + self.HEADER_SIZE]
+        header_raw = self._fd[cur : cur + self.HEADER_SIZE]  # noqa: E203
         ms_keys = [
             "beam_center_x",
             "beam_center_y",
@@ -1434,13 +1421,13 @@ class MultifileBNL:
             )
         # dlen is 4 bytes
         cur = self.frame_indexes[n]
-        dlen = np.frombuffer(self._fd[cur: cur + 4], dtype="<u4")[0]
+        dlen = np.frombuffer(self._fd[cur : cur + 4], dtype="<u4")[0]  # noqa: E203
         cur += 4
-        pos = self._fd[cur: cur + dlen * 4]
+        pos = self._fd[cur : cur + dlen * 4]  # noqa: E203
         cur += dlen * 4
         pos = np.frombuffer(pos, dtype="<u4")
         # TODO: 2-> nbytes
-        vals = self._fd[cur: cur + dlen * self.nbytes]
+        vals = self._fd[cur : cur + dlen * self.nbytes]  # noqa: E203
         vals = np.frombuffer(vals, dtype=self.valtype)
         return pos, vals
 
@@ -1862,7 +1849,7 @@ def validate_uid(run):
         md = get_meta_data(run)
         load_data(run, md["detector"], reverse=True)
         return True
-    except Exception: 
+    except Exception:
         return False
 
 
@@ -1984,6 +1971,7 @@ def sparsify(
             cmp_file = "/uid_%s_bined--%s.cmp" % (md["uid"], bin_frame_number)
         filename = cmp_path + cmp_file
         mask, avg_img, imgsum, bad_frame_list = compress_eigerdata(
+            run,
             imgs,
             mask,
             md,
