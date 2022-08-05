@@ -40,10 +40,10 @@ from tiled.client import from_profile
 
 EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 
-# tiled_client = from_profile("nsls2", username=None)["chx"]["raw"]
-# run1 = tiled_client["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
-# run2 = tiled_client["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
-# run3 = tiled_client["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
+tiled_client = from_profile("nsls2", username=None)["chx"]["raw"]
+run1 = tiled_client["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
+run2 = tiled_client["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
+run3 = tiled_client["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
 
 
 # db = databroker.from_profile("nsls2", username=None)['chx']['raw'].v0
@@ -51,12 +51,15 @@ EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 # header2 = db['e909f4a2-12e3-4521-a7a6-be2b728a826b']
 # header3 = db['b79184e1-d053-42e4-b1eb-f8ab0a146220']
 
-tiled_client = from_profile("chx", username=None, api_key=None)
-run1 = tiled_client["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
-run2 = tiled_client["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
-run3 = tiled_client["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
+# tiled_client = from_profile("chx", username=None, api_key=None)
+# run1 = tiled_client["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
+# run2 = tiled_client["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
+# run3 = tiled_client["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
 
-def delete_data(old_path, new_path="/nsls2/data/dssi/scratch/prefect-outputs/chx/new_path/"):
+
+def delete_data(
+    old_path, new_path="/nsls2/data/dssi/scratch/prefect-outputs/chx/new_path/"
+):
     """YG Dev July@CHX
     Delete copied Eiger file containing master and data in a new path
     old_path: the full path of the Eiger master file
@@ -73,7 +76,9 @@ def delete_data(old_path, new_path="/nsls2/data/dssi/scratch/prefect-outputs/chx
             os.remove(nfp)
 
 
-def copy_data(old_path, new_path="/nsls2/data/dssi/scratch/prefect-outputs/chx/new_path/"):
+def copy_data(
+    old_path, new_path="/nsls2/data/dssi/scratch/prefect-outputs/chx/new_path/"
+):
     """YG Dev July@CHX
     Copy Eiger file containing master and data files to a new path
     old_path: the full path of the Eiger master file
@@ -108,7 +113,7 @@ def reverse_updown(imgs):
     Usuages:
     imgsr = reverse_updown( imgs)
     """
-    return pims.pipeline(lambda img: img[::-1, :])(imgs)  # lazily apply mask
+    return pims.pipeline(lambda img: img[::-1,:])(imgs)  # lazily apply mask
 
 
 def rot90_clockwise(imgs):
@@ -158,11 +163,7 @@ def get_sid_filenames(run):
 
 
 def load_data(
-    run,
-    detector="eiger4m_single_image",
-    fill=True,
-    reverse=False,
-    rot90=False
+    run, detector="eiger4m_single_image", fill=True, reverse=False, rot90=False
 ):
     """
     load bluesky scan data by giving uid and detector
@@ -184,12 +185,12 @@ def load_data(
     """
 
     # TODO(mrakitin): replace with the lazy loader (when it's implemented):
-    imgs = list(run['primary']['data'][detector])
+    imgs = list(run["primary"]["data"][detector])
 
     # if len(imgs[0]) >= 1:
-        # md = imgs[0].md
+    # md = imgs[0].md
     imgs = pims.pipeline(lambda img: img)(imgs[0])
-        # imgs.md = md
+    # imgs.md = md
 
     if reverse:
         # md = imgs.md
@@ -202,14 +203,6 @@ def load_data(
         # imgs.md = md
 
     return imgs
-
-
-def get_detector(header):
-    """Get the first detector image string by giving header"""
-    keys = get_detectors(header)
-    for k in keys:
-        if "eiger" in k:
-            return k
 
 
 def create_time_slice(N, slice_num, slice_width, edges=None):
@@ -263,7 +256,7 @@ def pass_FD(FD, n):
     # FD.rdframe(n)
     try:
         FD.seekimg(n)
-    except:
+    except Exception:
         pass
         return False
 
@@ -324,7 +317,7 @@ def compress_eigerdata(
             sud = get_sid_filenames(db[uid])
             data_path = sud[2][0]
     if force_compress:
-        print("Create a new compress file with filename as :%s." % filename)
+        print("Create a new compress file with filename as:%s." % filename)
         if para_compress:
             # stop connection to be before forking... (let it reset again)
             db.reg.disconnect()
@@ -370,7 +363,7 @@ def compress_eigerdata(
             )
     else:
         if not os.path.exists(filename):
-            print("Create a new compress file with filename as :%s." % filename)
+            print("Create a new compress file with filename as:%s." % filename)
             if para_compress:
                 print("Using a multiprocess to compress the data.")
                 return para_compress_eigerdata(
@@ -412,7 +405,7 @@ def compress_eigerdata(
                 )
         else:
             print(
-                "Using already created compressed file with filename as :%s." % filename
+                "Using already created compressed file with filename as:%s." % filename
             )
             beg = 0
             return read_compressed_eigerdata(
@@ -463,7 +456,7 @@ def read_compressed_eigerdata(
             mask, avg_img, imgsum, bad_frame_list_ = pkl.load(
                 open(filename + ".pkl", "rb")
             )
-        except:
+        except Exception:
             CAL = True
     if CAL:
         FD = Multifile(filename, beg, end)
@@ -483,7 +476,6 @@ def read_compressed_eigerdata(
             beg=None,
             end=None,
             sampling=1,
-            plot_=False,
             bad_frame_list=bad_frame_list_,
         )
         FD.FID.close()
@@ -590,8 +582,8 @@ def para_compress_eigerdata(
     good_count = 1
     for i in range(Nf):
         mask_, avg_img_, imgsum_, bad_frame_list_ = res_[i]
-        imgsum[i * num_sub : (i + 1) * num_sub] = imgsum_
-        bad_frame_list[i * num_sub : (i + 1) * num_sub] = bad_frame_list_
+        imgsum[i * num_sub: (i + 1) * num_sub] = imgsum_
+        bad_frame_list[i * num_sub: (i + 1) * num_sub] = bad_frame_list_
         if i == 0:
             mask = mask_
             avg_img = np.zeros_like(avg_img_)
@@ -1066,7 +1058,7 @@ def init_compress_eigerdata(
         dlen = len(p)
         imgsum[n] = v.sum()
         if (imgsum[n] > bad_pixel_threshold) or (imgsum[n] <= bad_pixel_low_threshold):
-            # if imgsum[n] >=bad_pixel_threshold :
+            # if imgsum[n] >=bad_pixel_threshold:
             dlen = 0
             fp.write(struct.pack("@I", dlen))
         else:
@@ -1322,12 +1314,12 @@ class Multifile_Bins(object):
             # print (n)
             t1, t2 = self.time_edge[n]
             # print( t1, t2)
-            self.frames[:, :, n] = get_avg_imgc(
-                FD, beg=t1, end=t2, sampling=1, plot_=False, show_progress=False
+            self.frames[:,:, n] = get_avg_imgc(
+                FD, beg=t1, end=t2, sampling=1, show_progress=False
             )
 
     def rdframe(self, n):
-        return self.frames[:, :, n]
+        return self.frames[:,:, n]
 
     def rdrawframe(self, n):
         x_ = np.ravel(self.rdframe(n))
@@ -1346,12 +1338,12 @@ class MultifileBNL:
     def __init__(self, filename, mode="rb"):
         """
         Prepare a file for reading or writing.
-        mode : either 'rb' or 'wb'
+        mode: either 'rb' or 'wb'
         """
         if mode == "wb":
             raise ValueError("Write mode 'wb' not supported yet")
         if mode != "rb" and mode != "wb":
-            raise ValueError("Error, mode must be 'rb' or 'wb'" "got : {}".format(mode))
+            raise ValueError("Error, mode must be 'rb' or 'wb'" "got: {}".format(mode))
         self._filename = filename
         self._mode = mode
         # open the file descriptor
@@ -1387,7 +1379,7 @@ class MultifileBNL:
         while cur < file_bytes:
             self.frame_indexes.append(cur)
             # first get dlen, 4 bytes
-            dlen = np.frombuffer(self._fd[cur : cur + 4], dtype="<u4")[0]
+            dlen = np.frombuffer(self._fd[cur: cur + 4], dtype="<u4")[0]
             # print("found {} bytes".format(dlen))
             # self.nbytes is number of bytes per val
             cur += 4 + dlen * (4 + self.nbytes)
@@ -1410,7 +1402,7 @@ class MultifileBNL:
         # read in bytes
         # header is always from zero
         cur = 0
-        header_raw = self._fd[cur : cur + self.HEADER_SIZE]
+        header_raw = self._fd[cur: cur + self.HEADER_SIZE]
         ms_keys = [
             "beam_center_x",
             "beam_center_y",
@@ -1428,7 +1420,6 @@ class MultifileBNL:
             "cols_begin",
             "cols_end",
         ]
-        magic = struct.unpack("@16s", header_raw[:16])
         md_temp = struct.unpack("@8d7I916x", header_raw[16:])
         self.md = dict(zip(ms_keys, md_temp))
         return self.md
@@ -1443,13 +1434,13 @@ class MultifileBNL:
             )
         # dlen is 4 bytes
         cur = self.frame_indexes[n]
-        dlen = np.frombuffer(self._fd[cur : cur + 4], dtype="<u4")[0]
+        dlen = np.frombuffer(self._fd[cur: cur + 4], dtype="<u4")[0]
         cur += 4
-        pos = self._fd[cur : cur + dlen * 4]
+        pos = self._fd[cur: cur + dlen * 4]
         cur += dlen * 4
         pos = np.frombuffer(pos, dtype="<u4")
         # TODO: 2-> nbytes
-        vals = self._fd[cur : cur + dlen * self.nbytes]
+        vals = self._fd[cur: cur + dlen * self.nbytes]
         vals = np.frombuffer(vals, dtype=self.valtype)
         return pos, vals
 
@@ -1491,7 +1482,6 @@ def get_avg_imgc(
     beg=None,
     end=None,
     sampling=100,
-    plot_=False,
     bad_frame_list=None,
     show_progress=True,
     *argv,
@@ -1540,35 +1530,7 @@ def get_avg_imgc(
                 if len(p) > 0:
                     np.ravel(avg_img)[p] += v
                     n += 1
-
     avg_img /= n
-    if plot_:
-        if RUN_GUI:
-            fig = Figure()
-            ax = fig.add_subplot(111)
-        else:
-            fig, ax = plt.subplots()
-        uid = "uid"
-        if "uid" in kwargs.keys():
-            uid = kwargs["uid"]
-        im = ax.imshow(
-            avg_img, cmap="viridis", origin="lower", norm=LogNorm(vmin=0.001, vmax=1e2)
-        )
-        # ax.set_title("Masked Averaged Image")
-        ax.set_title("uid= %s--Masked-Averaged-Image-" % uid)
-        fig.colorbar(im)
-        if save:
-            # dt =datetime.now()
-            # CurTime = '%s%02d%02d-%02d%02d-' % (dt.year, dt.month, dt.day,dt.hour,dt.minute)
-            path = kwargs["path"]
-            if "uid" in kwargs:
-                uid = kwargs["uid"]
-            else:
-                uid = "uid"
-            # fp = path + "uid= %s--Waterfall-"%uid + CurTime + '.png'
-            fp = path + "uid=%s--avg-img-" % uid + ".png"
-            plt.savefig(fp, dpi=fig.dpi)
-        # plt.show()
     return avg_img
 
 
@@ -1579,22 +1541,22 @@ def mean_intensityc(FD, labeled_array, sampling=1, index=None, multi_cor=False):
     ----------
     FD: Multifile class
         compressed file
-    labeled_array : array
+    labeled_array: array
         labeled array; 0 is background.
         Each ROI is represented by a nonzero integer. It is not required that
         the ROI labels are contiguous
-    index : int, list, optional
+    index: int, list, optional
         The ROI's to use. If None, this function will extract averages for all
         ROIs
 
     Returns
     -------
-    mean_intensity : array
+    mean_intensity: array
         The mean intensity of each ROI for all `images`
         Dimensions:
             len(mean_intensity) == len(index)
             len(mean_intensity[0]) == len(images)
-    index : list
+    index: list
         The labels for each element of the `mean_intensity` list
     """
 
@@ -1678,7 +1640,6 @@ def _get_mean_intensity_one_q(FD, sampling, labels):
     n = 0
     qind, pixelist = roi.extract_label_indices(labels)
     # iterate over the images to compute multi-tau correlation
-    fra_pix = np.zeros_like(pixelist, dtype=np.float64)
     timg = np.zeros(FD.md["ncols"] * FD.md["nrows"], dtype=np.int32)
     timg[pixelist] = np.arange(1, len(pixelist) + 1)
     for i in range(FD.beg, FD.end, sampling):
@@ -1765,23 +1726,23 @@ def get_each_frame_intensityc(
 
 
 def get_devices(run):
-        """
-        Return the names of the devices in this run.
-        Parameters
-        ----------
-        Returns
-        -------
-        devices : set
-        """
-        descriptors = []
-        for stream in run.values():
-            descriptors.extend(stream.descriptors)
+    """
+    Return the names of the devices in this run.
+    Parameters
+    ----------
+    Returns
+    -------
+    devices: set
+    """
+    descriptors = []
+    for stream in run.values():
+        descriptors.extend(stream.descriptors)
 
-        devices = set()
-        for descriptor in descriptors:
-            devices.update(descriptor['object_keys'])
+    devices = set()
+    for descriptor in descriptors:
+        devices.update(descriptor["object_keys"])
 
-        return devices
+    return devices
 
 
 def get_device_config(run, device_name):
@@ -1796,7 +1757,7 @@ def get_device_config(run, device_name):
         config = descriptor["configuration"].get(device_name)
         if config:
             result[descriptor.get("name")].append(config["data"])
-    return dict(result)['primary'][0]
+    return dict(result)["primary"][0]
 
 
 def get_meta_data(run, default_dec="eiger", *argv, **kwargs):
@@ -1830,7 +1791,7 @@ def get_meta_data(run, default_dec="eiger", *argv, **kwargs):
     md["suid"] = run.start["uid"]  # short uid
     try:
         md["filename"] = get_sid_filenames(run)[2][0]
-    except:
+    except Exception:
         md["filename"] = "N.A."
 
     devices = sorted(list(get_devices(run)))
@@ -1867,7 +1828,7 @@ def get_meta_data(run, default_dec="eiger", *argv, **kwargs):
     try:
         md.update(run.start["plan_args"].items())
         md.pop("plan_args")
-    except:
+    except Exception:
         pass
     md.update(run.start.items())
 
@@ -1883,7 +1844,7 @@ def get_meta_data(run, default_dec="eiger", *argv, **kwargs):
         if "primary" in run.keys():
             descriptor = run["primary"].descriptors[0]
             md["img_shape"] = descriptor["data_keys"][md["detector"]]["shape"][:2][::-1]
-    except:
+    except Exception:
         if verbose:
             print("couldn't find image shape...skip!")
         else:
@@ -1897,11 +1858,11 @@ def get_meta_data(run, default_dec="eiger", *argv, **kwargs):
 def validate_uid(run):
     """check uid whether be able to load data"""
     try:
-        sud = get_sid_filenames(run)
+        get_sid_filenames(run)
         md = get_meta_data(run)
-        imgs = load_data(run, md["detector"], reverse=True)
+        load_data(run, md["detector"], reverse=True)
         return True
-    except:
+    except Exception: 
         return False
 
 
@@ -1973,6 +1934,7 @@ def sparsify(
     reverse=True,
     rot90=False,
     use_local_disk=True,
+    mask=None,
 ):
 
     """
@@ -1997,7 +1959,6 @@ def sparsify(
     # Convert ref to uid.
     uid = tiled_client[ref].start["uid"]
     run = tiled_client[uid]
-    mask = None
 
     print("Ref: %s is in processing..." % uid)
     if validate_uid(run):
@@ -2046,5 +2007,5 @@ def sparsify(
 # Make the Prefect Flow.
 # A separate command is needed to register it with the Prefect server.
 # with Flow("export") as flow:
-    # ref = Parameter("ref")
-    # processed_refs = sparsify(ref)
+# ref = Parameter("ref")
+# processed_refs = sparsify(ref)
