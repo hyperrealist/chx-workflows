@@ -5,8 +5,6 @@ import sys
 import time
 
 from collections import defaultdict
-from multiprocessing import Pool
-from pathlib import Path
 
 import databroker
 import dill
@@ -28,24 +26,30 @@ from tqdm import tqdm
 # this is where the decision is made whether or not to use dask
 # from chxtools.handlers import EigerImages, EigerHandler
 from eiger_io.fs_handler import EigerImages
+from multiprocessing import Pool
 from numpy import array
+from pathlib import Path
 from pandas import Timestamp
 from prefect import Flow, Parameter, task
 from tiled.client import from_profile
 
+from databroker._legacy_images import Images
+
 EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 
-tiled_client = from_profile("nsls2", username=None)["chx"]["raw"]
+
+tiled_client = from_profile("chx", username=None, api_key=None)
+tiled_client_v1 = from_profile("chx", username=None, api_key=None).v1
+#tiled_client = from_profile("nsls2", username=None)["chx"]["raw"]
 run1 = tiled_client["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
 run2 = tiled_client["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
 run3 = tiled_client["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
 
-
 #db = databroker.from_profile("nsls2", username=None)['chx']['raw'].v1
-db = from_profile("chx", username=None, api_key=None).v1
-header1 = db['d85d157f-57d9-4649-9b65-0d3b9f754e01']
-header2 = db['e909f4a2-12e3-4521-a7a6-be2b728a826b']
-header3 = db['b79184e1-d053-42e4-b1eb-f8ab0a146220']
+#db = from_profile("chx", username=None, api_key=None).v1
+#header1 = db['d85d157f-57d9-4649-9b65-0d3b9f754e01']
+#header2 = db['e909f4a2-12e3-4521-a7a6-be2b728a826b']
+#header3 = db['b79184e1-d053-42e4-b1eb-f8ab0a146220']
 
 # tiled_client = from_profile("chx", username=None, api_key=None)
 # run1 = tiled_client["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
@@ -285,10 +289,6 @@ def get_sid_filenames(run):
             filepaths.extend(new_filepaths)
     return run.start["scan_id"], run.start["uid"], filepaths
 
-
-def get_file_metadata(header, detector="eiger4m_single_image"):
-    imgs = next(header.data(detector))
-    return imgs.md
 
 def load_data(
     run, detector="eiger4m_single_image", fill=True, reverse=False, rot90=False
@@ -1893,9 +1893,15 @@ def get_device_config(run, device_name):
     return dict(result)["primary"][0]
 
 
-def get_run_metadata(run, default_dec="eiger", *argv, **kwargs):
-    """ejdjcbchhigcekcvuirnlethcdfhnecdkutnkffjrrcl
+def get_file_metadata(run, detector="eiger4m_single_image"):
+    uid = run.start['uid']
+    header = tiled_client_v1[uid]
+    imgs = next(header.data(detector))
+    return imgs.md
 
+
+def get_run_metadata(run, default_dec="eiger", *argv, **kwargs):
+    """
     Get metadata from a uid
 
     - Adds detector key with detector name
@@ -2067,7 +2073,7 @@ def sparsify(
     ref,
     mask_dict=None,
     force_compress=False,
-    para_compress=False,
+    para_compress=True,
     bin_frame_number=1,
     use_local_disk=True,
     mask=None,
@@ -2099,6 +2105,7 @@ def sparsify(
     print("Ref: %s is in processing..." % uid)
     if validate_uid(run):
         md = get_run_metadata(run)
+        md.update(get_file_metadata(run))
         if md['detector'] =='eiger4m_single_image' or md['detector'] == 'image':    
             reverse= True
             rot90= False
@@ -2108,7 +2115,11 @@ def sparsify(
         elif md['detector'] =='eiger1m_single_image':    
             reverse= True
             rot90=False
+        
         imgs = load_data(run, md["detector"], reverse=reverse, rot90=rot90)
+        imgs2 = Images(data_array=imgs)
+        imgs2.md = md
+
         sud = get_sid_filenames(run)
         for pa in sud[2]:
             if "master.h5" in pa:
@@ -2117,7 +2128,6 @@ def sparsify(
         if mask_dict is not None:
             mask = mask_dict[md["detector"]]
             print("The detecotr is: %s" % md["detector"])
-        # md.update(imgs.md)
         if not use_local_disk:
             cmp_path = "/nsls2/data/dssi/scratch/prefect-outputs/chx/compressed_data"
         else:
@@ -2130,7 +2140,7 @@ def sparsify(
         filename = cmp_path + cmp_file
         mask, avg_img, imgsum, bad_frame_list = compress_eigerdata(
             run,
-            imgs,
+            imgs2,
             mask,
             md,
             filename,
@@ -2145,6 +2155,7 @@ def sparsify(
             with_pickle=True,
             direct_load_data=use_local_disk,
             data_path=data_fullpath,
+            nobytes=4
         )
 
     print("Done!")
