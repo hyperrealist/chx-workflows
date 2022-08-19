@@ -2184,12 +2184,10 @@ def sparsify_improved(ref):
         """
         Return the coords for the frame and flatten them into a 1D array.
         """
-
         match_frame = np.where(coords[1] == frame_number)[0]
-        start = match_frame[0]
-        end = match_frame[-1]
-        coord_slice = coords[:,start:end]
+        coord_slice = coords[:,match_frame[0]:match_frame[-1]]
         return np.ravel_multi_index(coord_slice, sparse_images.shape)
+
 
     uid = tiled_client_dask[ref].start["uid"]
     run = tiled_client_dask[uid]
