@@ -2186,8 +2186,8 @@ def sparsify_improved(ref):
         """
 
         match_frame = np.where(sparse_images.coords[1] == frame_number)[0]
-        start_pixel = match_frame[0]
-        end_pixel = match_frame[-1]
+        start = match_frame[0]
+        end = match_frame[-1]
         coord_slice = sparse_images.coords[:,start:end]
         return np.ravel_multi_index(coord_slice, sparse_images.shape)
 
@@ -2213,10 +2213,6 @@ def sparsify_improved(ref):
 
 
     return sparse_images
-    # Create the index.
-    #linear_index = np.ravel_multi_index(sparse_images.coords, sparse_images.shape)
-
-    #breakpoint()
 
     
 
