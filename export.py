@@ -2180,7 +2180,7 @@ def sparsify_improved(ref):
 
     """
 
-    def get_frame_index(coords, frame_number):
+    def get_frame_coords(coords, frame_number):
         """
         Return the coords for the frame and flatten them into a 1D array.
         """
