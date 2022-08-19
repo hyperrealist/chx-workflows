@@ -2180,15 +2180,15 @@ def sparsify_improved(ref):
 
     """
 
-    def get_frame_index(sparse_images, frame_number):
+    def get_frame_index(coords, frame_number):
         """
         Return the coords for the frame and flatten them into a 1D array.
         """
 
-        match_frame = np.where(sparse_images.coords[1] == frame_number)[0]
+        match_frame = np.where(coords[1] == frame_number)[0]
         start = match_frame[0]
         end = match_frame[-1]
-        coord_slice = sparse_images.coords[:,start:end]
+        coord_slice = coords[:,start:end]
         return np.ravel_multi_index(coord_slice, sparse_images.shape)
 
     uid = tiled_client_dask[ref].start["uid"]
