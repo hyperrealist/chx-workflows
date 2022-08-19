@@ -19,6 +19,7 @@ import pickle as pkl
 import pims
 import prefect
 import skbeam.core.roi as roi
+import sparse
 import struct
 from tqdm import tqdm
 
@@ -32,18 +33,24 @@ from pathlib import Path
 from pandas import Timestamp
 from prefect import Flow, Parameter, task
 from tiled.client import from_profile
+from tiled.structures.sparse import COOStructure
+
+
 
 from databroker._legacy_images import Images
 
 EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 
-
 tiled_client = from_profile("chx", username=None, api_key=None)
 tiled_client_v1 = from_profile("chx", username=None, api_key=None).v1
+tiled_client_dask = from_profile("chx", "dask")
 #tiled_client = from_profile("nsls2", username=None)["chx"]["raw"]
 run1 = tiled_client["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
 run2 = tiled_client["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
 run3 = tiled_client["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
+
+run2_file_export = '/nsls2/data/dssi/scratch/prefect-outputs/chx/compressed_data/uid_e909f4a2-12e3-4521-a7a6-be2b728a826b.cmp'
+run2_file_chx = '/nsls2/data/chx/legacy/Compression_test/fluerasu/uid_e909f4a2-12e3-4521-a7a6-be2b728a826b.cmp'
 
 #db = databroker.from_profile("nsls2", username=None)['chx']['raw'].v1
 #db = from_profile("chx", username=None, api_key=None).v1
@@ -2155,11 +2162,65 @@ def sparsify(
             with_pickle=True,
             direct_load_data=use_local_disk,
             data_path=data_fullpath,
-            nobytes=4
+            nobytes=2
         )
 
     print("Done!")
 
+
+def sparsify_improved(ref):
+    """
+    Performs sparsification.
+
+    Parameters
+    ----------
+    ref: string
+        This is the reference to the BlueskyRun to be exported. It can be
+        a partial uid, a full uid, a scan_id, or an index (e.g. -1).
+
+    """
+
+    def get_frame_index(sparse_images, frame_number):
+        """
+        Return the coords for the frame and flatten them into a 1D array.
+        """
+
+        match_frame = np.where(sparse_images.coords[1] == frame_number)[0]
+        start_pixel = match_frame[0]
+        end_pixel = match_frame[-1]
+        coord_slice = sparse_images.coords[:,start:end]
+        return np.ravel_multi_index(coord_slice, sparse_images.shape)
+
+    uid = tiled_client_dask[ref].start["uid"]
+    run = tiled_client_dask[uid]
+    
+    # Collect the metadata.
+    md = get_run_metadata(run)
+    md.update(get_file_metadata(run))
+
+    # Load the images
+    dask_images = run["primary"]["data"]["eiger4m_single_image"].read()
+
+    # Do a up/down flip of the images 
+    dask_images = np.flip(dask_images, axis=2)
+
+    # Rotate the images if the detector is eiger500K_single_image.
+    if md['detector'] =='eiger500K_single_image':    
+        dask_images = np.rotate(dask_images, axis=(3,2))
+
+    # Perform the sparsification,
+    sparse_images = dask_images.map_blocks(sparse.COO).compute()
+
+
+    return sparse_images
+    # Create the index.
+    #linear_index = np.ravel_multi_index(sparse_images.coords, sparse_images.shape)
+
+    #breakpoint()
+
+    
+
+    
 
 # Make the Prefect Flow.
 # A separate command is needed to register it with the Prefect server.
