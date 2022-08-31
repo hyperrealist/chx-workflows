@@ -17,10 +17,10 @@ import numpy
 import numpy as np
 import pickle as pkl
 import pims
-import prefect
 import skbeam.core.roi as roi
 import sparse
 import struct
+import tiled
 from tqdm import tqdm
 
 # imports handler from CHX
@@ -31,173 +31,23 @@ from multiprocessing import Pool
 from numpy import array
 from pathlib import Path
 from pandas import Timestamp
-from prefect import Flow, Parameter, task
 from tiled.client import from_profile
 from tiled.structures.sparse import COOStructure
 
-
-
 from databroker._legacy_images import Images
 
-EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 
+EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 tiled_client = from_profile("chx", username=None, api_key=None)
 tiled_client_v1 = from_profile("chx", username=None, api_key=None).v1
 tiled_client_dask = from_profile("chx", "dask")
-#tiled_client = from_profile("nsls2", username=None)["chx"]["raw"]
+
 run1 = tiled_client["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
 run2 = tiled_client["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
 run3 = tiled_client["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
 
 run2_file_export = '/nsls2/data/dssi/scratch/prefect-outputs/chx/compressed_data/uid_e909f4a2-12e3-4521-a7a6-be2b728a826b.cmp'
 run2_file_chx = '/nsls2/data/chx/legacy/Compression_test/fluerasu/uid_e909f4a2-12e3-4521-a7a6-be2b728a826b.cmp'
-
-#db = databroker.from_profile("nsls2", username=None)['chx']['raw'].v1
-#db = from_profile("chx", username=None, api_key=None).v1
-#header1 = db['d85d157f-57d9-4649-9b65-0d3b9f754e01']
-#header2 = db['e909f4a2-12e3-4521-a7a6-be2b728a826b']
-#header3 = db['b79184e1-d053-42e4-b1eb-f8ab0a146220']
-
-# tiled_client = from_profile("chx", username=None, api_key=None)
-# run1 = tiled_client["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
-# run2 = tiled_client["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
-# run3 = tiled_client["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
-
-run_md = {'suid': 'e909f4a2',
- 'filename': '/nsls2/data/chx/legacy/data/2022/07/18/64d6bc55-2b1e-45eb-b5ba_1216_data_000020.h5',
- 'detector': 'eiger4m_single_image',
- 'eiger4m_single_cam_acquire_period': 0.002,
- 'eiger4m_single_cam_acquire_time': 0.001997,
- 'eiger4m_single_cam_num_images': 200,
- 'eiger4m_single_beam_center_x': 1143.0,
- 'eiger4m_single_beam_center_y': 1229.0,
- 'eiger4m_single_wavelength': 1.28507668359453,
- 'eiger4m_single_det_distance': 16.235550295,
- 'eiger4m_single_threshold_energy': 4824.0,
- 'eiger4m_single_photon_energy': 9648.0,
- 'eiger4m_single_stats1_bgd_width': 1,
- 'eiger4m_single_stats1_centroid_threshold': 1.0,
- 'eiger4m_single_stats1_compute_centroid': 'No',
- 'eiger4m_single_stats1_compute_histogram': 'No',
- 'eiger4m_single_stats1_compute_profiles': 'No',
- 'eiger4m_single_stats1_compute_statistics': 'Yes',
- 'eiger4m_single_stats1_hist_max': 255.0,
- 'eiger4m_single_stats1_hist_min': 0.0,
- 'eiger4m_single_stats1_hist_size': 256,
- 'eiger4m_single_stats1_ts_num_points': 2048,
- 'eiger4m_single_stats2_bgd_width': 1,
- 'eiger4m_single_stats2_centroid_threshold': 1.0,
- 'eiger4m_single_stats2_compute_centroid': 'No',
- 'eiger4m_single_stats2_compute_histogram': 'No',
- 'eiger4m_single_stats2_compute_profiles': 'No',
- 'eiger4m_single_stats2_compute_statistics': 'Yes',
- 'eiger4m_single_stats2_hist_max': 255.0,
- 'eiger4m_single_stats2_hist_min': 0.0,
- 'eiger4m_single_stats2_hist_size': 256,
- 'eiger4m_single_stats2_ts_num_points': 2048,
- 'eiger4m_single_stats3_bgd_width': 1,
- 'eiger4m_single_stats3_centroid_threshold': 1.0,
- 'eiger4m_single_stats3_compute_centroid': 'No',
- 'eiger4m_single_stats3_compute_histogram': 'No',
- 'eiger4m_single_stats3_compute_profiles': 'No',
- 'eiger4m_single_stats3_compute_statistics': 'Yes',
- 'eiger4m_single_stats3_hist_max': 255.0,
- 'eiger4m_single_stats3_hist_min': 0.0,
- 'eiger4m_single_stats3_hist_size': 256,
- 'eiger4m_single_stats3_ts_num_points': 2048,
- 'eiger4m_single_stats4_bgd_width': 1,
- 'eiger4m_single_stats4_centroid_threshold': 1.0,
- 'eiger4m_single_stats4_compute_centroid': 'No',
- 'eiger4m_single_stats4_compute_histogram': 'No',
- 'eiger4m_single_stats4_compute_profiles': 'No',
- 'eiger4m_single_stats4_compute_statistics': 'Yes',
- 'eiger4m_single_stats4_hist_max': 255.0,
- 'eiger4m_single_stats4_hist_min': 0.0,
- 'eiger4m_single_stats4_hist_size': 256,
- 'eiger4m_single_stats4_ts_num_points': 2048,
- 'eiger4m_single_stats5_bgd_width': 1,
- 'eiger4m_single_stats5_centroid_threshold': 1.0,
- 'eiger4m_single_stats5_compute_centroid': 'No',
- 'eiger4m_single_stats5_compute_histogram': 'No',
- 'eiger4m_single_stats5_compute_profiles': 'No',
- 'eiger4m_single_stats5_compute_statistics': 'Yes',
- 'eiger4m_single_stats5_hist_max': 255.0,
- 'eiger4m_single_stats5_hist_min': 0.0,
- 'eiger4m_single_stats5_hist_size': 256,
- 'eiger4m_single_stats5_ts_num_points': 2048,
- 'detectors': ['eiger4m_single'],
- 'num': 1,
- 'uid': 'e909f4a2-12e3-4521-a7a6-be2b728a826b',
- 'time': Timestamp('2022-08-17 17:51:31.957174528'),
- 'owner': 'xf11id',
- 'sample': 'membrane',
- 'cycle': '2022_2',
- 'scan_id': 101172,
- 'user': 'rama',
- 'beamline_id': 'CHX',
- 'auto_pipeline': 'XPCS_SAXS_2022_2_v1',
- 'plan_type': 'generator',
- 'plan_name': 'count',
- 'num_points': 1,
- 'num_intervals': 0,
- 'plan_args': {'detectors': ["EigerSingleTrigger_AD37_V2(prefix='XF:11IDB-ES{Det:Eig4M}', name='eiger4m_single', read_attrs=['file', 'stats1', 'stats1.total', 'stats2', 'stats2.total', 'stats3', 'stats3.total', 'stats4', 'stats4.total', 'stats5', 'stats5.total'], configuration_attrs=['cam', 'cam.acquire_period', 'cam.acquire_time', 'cam.num_images', 'file', 'beam_center_x', 'beam_center_y', 'wavelength', 'det_distance', 'threshold_energy', 'photon_energy', 'stats1', 'stats1.bgd_width', 'stats1.centroid_threshold', 'stats1.compute_centroid', 'stats1.compute_histogram', 'stats1.compute_profiles', 'stats1.compute_statistics', 'stats1.hist_max', 'stats1.hist_min', 'stats1.hist_size', 'stats1.profile_cursor', 'stats1.profile_size', 'stats1.ts_num_points', 'stats2', 'stats2.bgd_width', 'stats2.centroid_threshold', 'stats2.compute_centroid', 'stats2.compute_histogram', 'stats2.compute_profiles', 'stats2.compute_statistics', 'stats2.hist_max', 'stats2.hist_min', 'stats2.hist_size', 'stats2.profile_cursor', 'stats2.profile_size', 'stats2.ts_num_points', 'stats3', 'stats3.bgd_width', 'stats3.centroid_threshold', 'stats3.compute_centroid', 'stats3.compute_histogram', 'stats3.compute_profiles', 'stats3.compute_statistics', 'stats3.hist_max', 'stats3.hist_min', 'stats3.hist_size', 'stats3.profile_cursor', 'stats3.profile_size', 'stats3.ts_num_points', 'stats4', 'stats4.bgd_width', 'stats4.centroid_threshold', 'stats4.compute_centroid', 'stats4.compute_histogram', 'stats4.compute_profiles', 'stats4.compute_statistics', 'stats4.hist_max', 'stats4.hist_min', 'stats4.hist_size', 'stats4.profile_cursor', 'stats4.profile_size', 'stats4.ts_num_points', 'stats5', 'stats5.bgd_width', 'stats5.centroid_threshold', 'stats5.compute_centroid', 'stats5.compute_histogram', 'stats5.compute_profiles', 'stats5.compute_statistics', 'stats5.hist_max', 'stats5.hist_min', 'stats5.hist_size', 'stats5.profile_cursor', 'stats5.profile_size', 'stats5.ts_num_points'])"],
-  'num': 1},
- 'hints': {'dimensions': [[['time'], 'primary']]},
- 'exposure time': '0.002',
- 'acquire period': '0.002',
- 'shutter mode': 'single',
- 'number of images': 200,
- 'data path': '/nsls2/data/chx/legacy/data/2022/07/18/',
- 'sequence id': '1216',
- 'transmission': 1.0,
- 'OAV_mode': 'none',
- 'T_yoke': '16.591',
- 'T_sample': '16.591',
- 'T_sample_stinger': '0.0',
- 'analysis': 'q_phi',
- 'feedback_x': 'on',
- 'feedback_y': 'on',
- 'T_yoke_': '177.005',
- 'OAV_mode_': 'none',
- 'feedback_y_': 'on',
- 'number of images_': '500',
- 'shutter mode_': 'single',
- 'T_sample_stinger_': '0.0',
- 'sequence id_': '1165',
- 'T_sample_': '155.667',
- 'transmission_': 0.0012954448758557566,
- 'analysis_': 'iso',
- 'feedback_x_': 'on',
- 'exposure time_': '2.5',
- 'data path_': '/nsls2/data/chx/legacy/data/2022/07/15/',
- 'acquire period_': '2.5',
- 'Measurement': 'XPCS test 4m',
- 'start_time': '2022-07-18 15:25:36',
- 'stop_time': '2022-07-18 15:25:40',
- 'img_shape': [2167, 200],
- 'y_pixel_size': 7.5e-05,
- 'x_pixel_size': 7.5e-05,
- 'detector_distance': 16.235550295,
- 'incident_wavelength': 1.28507668359453,
- 'frame_time': 0.002,
- 'beam_center_x': 1143.0,
- 'beam_center_y': 1229.0,
- 'count_time': 0.001997,
- }
- #'pixel_mask': array([[0, 0, 0, ..., 0, 0, 0],
- #       [0, 0, 0, ..., 0, 0, 0],
- #       [0, 0, 0, ..., 0, 0, 0],
- #       ...,
- #       [0, 0, 0, ..., 0, 0, 0],
- #       [0, 0, 0, ..., 0, 0, 0],
- #       [0, 0, 0, ..., 0, 0, 0]], dtype='uint32'),
- #'binary_mask': array([[ True,  True,  True, ...,  True,  True,  True],
- #       [ True,  True,  True, ...,  True,  True,  True],
- #       [ True,  True,  True, ...,  True,  True,  True],
- #       ...,
- #       [ True,  True,  True, ...,  True,  True,  True],
- #       [ True,  True,  True, ...,  True,  True,  True],
- #       [ True,  True,  True, ...,  True,  True,  True]])}
 
 
 def delete_data(
@@ -259,6 +109,46 @@ def rot90_clockwise(imgs):
     return pims.pipeline(lambda img: np.rot90(img))(imgs)  # lazily apply mask
 
 
+def get_pixel_mask(metadata):
+    return (1 - np.array(metadata['pixel_mask'], dtype=bool)).astype(np.bool)
+
+
+def get_bad_pixel_mask(metadata):
+    bad_pixel_files = {'eiger4m_single_image': '/XF11ID/analysis/2019_2/BadPix_4M.npy',
+                       'image': '/XF11ID/analysis/2019_2/BadPix_4M.npy'}
+    
+    if bad_pixel_files.get(metadata['detector']):
+        bad_pixel_list =  np.load(bad_pixel_files[metadata['detector']])
+    else:
+        bad_pixel_list =  np.array([], dtype=bool)
+ 
+    bad_pixel_mask = np.ones(shape=(2167, 2070))
+    bad_pixel_mask.ravel()[bad_pixel_list] = 0
+    
+    return bad_pixel_mask.astype(bool)
+
+        
+def get_chip_mask(metadata):
+    chip_mask_files = {'eiger1m_single_image': '/XF11ID/analysis/2017_1/masks/Eiger1M_Chip_Mask.npy',
+                       'eiger4m_single_image': '/XF11ID/analysis/2017_1/masks/Eiger4M_chip_mask.npy',
+                       'image': '/XF11ID/analysis/2017_1/masks/Eiger4M_chip_mask.npy',
+                       'eiger500K_single_image': '/XF11ID/analysis/2017_1/masks/Eiger500K_Chip_Mask.npy'}
+   
+    
+    # Load the chip mask.
+    assert chip_mask_files.get(metadata['detector'])
+    chip_mask = np.load(chip_mask_files.get(metadata['detector']))
+
+    return chip_mask.astype(bool)
+
+
+def get_mask():    
+    mask_path = '/nsls2/data/chx/legacy/analysis/2022_2/masks/Jul11_2022_4M_SAXS.npy'
+    mask = np.load(mask_path)
+    mask = np.flip(mask, axis=0)
+    return mask
+
+
 def get_sid_filenames(run):
     """
     Get a bluesky scan_id, unique_id, filename by giveing uid
@@ -274,7 +164,7 @@ def get_sid_filenames(run):
     filename: string
     """
 
-    filepaths = set()
+    filepaths = []
     resources = {}  # uid: document
     datums = defaultdict(list)  # uid: List(document)
     for name, doc in run.documents():
@@ -293,8 +183,8 @@ def get_sid_filenames(run):
             dm_kw = datum["datum_kwargs"]
             seq_id = dm_kw["seq_id"]
             new_filepaths = glob.glob(f"{file_prefix!s}_{seq_id}*")
-            filepaths.update(new_filepaths)
-    return run.start["scan_id"], run.start["uid"], list(filepaths)
+            filepaths.extend(new_filepaths)
+    return run.start["scan_id"], run.start["uid"], filepaths
 
 
 def load_data(
@@ -1998,7 +1888,7 @@ def get_run_metadata(run, default_dec="eiger", *argv, **kwargs):
             pass
 
     md.update(kwargs)
-
+    
     # Why don't the timestamps match?
     md['time'] = Timestamp(md['time'], unit='s')
 
@@ -2075,7 +1965,6 @@ def lookup_directory(start_doc, tla="chx"):
     return Path(paths[0])
 
 
-@task
 def sparsify(
     ref,
     mask_dict=None,
@@ -2113,16 +2002,16 @@ def sparsify(
     if validate_uid(run):
         md = get_run_metadata(run)
         md.update(get_file_metadata(run))
-        if md['detector'] =='eiger4m_single_image' or md['detector'] == 'image':
+        if md['detector'] =='eiger4m_single_image' or md['detector'] == 'image':    
             reverse= True
             rot90= False
-        elif md['detector'] =='eiger500K_single_image':
+        elif md['detector'] =='eiger500K_single_image':    
             reverse= True
             rot90=True
-        elif md['detector'] =='eiger1m_single_image':
+        elif md['detector'] =='eiger1m_single_image':    
             reverse= True
             rot90=False
-
+        
         imgs = load_data(run, md["detector"], reverse=reverse, rot90=rot90)
         imgs2 = Images(data_array=imgs)
         imgs2.md = md
@@ -2168,20 +2057,6 @@ def sparsify(
     print("Done!")
 
 
-def get_frame_coords(coords, shape, frame_number):
-    """
-    Return the coords for the frame and flatten them into a 1D array.
-    """
-    offset = shape[-1] * shape[-2] * frame_number
-    match_frame = np.where(coords[1] == frame_number)[0]
-    coord_slice = coords[:,match_frame[0]:match_frame[-1]]
-    return np.ravel_multi_index(coord_slice, sparse_images.shape) - offset
-
-
-def get_frame_array(images, frame_number):
-    return images[0][frame_number].data
-
-
 def sparsify_improved(ref):
     """
     Performs sparsification.
@@ -2194,75 +2069,35 @@ def sparsify_improved(ref):
 
     """
 
+    def get_frame_coords(coords, shape, frame_number):
+        """
+        Return the coords for the frame and flatten them into a 1D array.
+        """
+        offset = shape[-1] * shape[-2] * frame_number
+        match_frame = np.where(coords[1] == frame_number)[0]
+        coord_slice = coords[:,match_frame[0]:match_frame[-1]]
+        return np.ravel_multi_index(coord_slice, sparse_images.shape) - offset
 
-    def write_frame(images, frame_number):
 
-        image_count = images.shape[1]
-        image = images[0][frame_number]
-
-        # Averaging
-
-
-        # Masking
-        mask = img < hot_pixel_threshold
-
-        for n in tqdm(range(Nimg)):
-            #t1, t2 = time_edge[n]
-            #img = np.average(images[t1:t2], axis=0)
-            mask &= img < hot_pixel_threshold
-            p = np.where((np.ravel(img) > 0) & np.ravel(mask))[0]  # don't use masked data
-            v = np.ravel(np.array(img, dtype=dtype))[p]
-            dlen = len(p)
-            imgsum[n] = v.sum()
-            if (imgsum[n] > bad_pixel_threshold) or (imgsum[n] <= bad_pixel_low_threshold):
-                # if imgsum[n] >=bad_pixel_threshold:
-                dlen = 0
-                fp.write(struct.pack("@I", dlen))
-            else:
-                np.ravel(avg_img)[p] += v
-                good_count += 1
-                frac += dlen / Nopix
-                # s_fmt ='@I{}i{}{}'.format( dlen,dlen,'ih'[nobytes==2])
-                fp.write(struct.pack("@I", dlen))
-                fp.write(struct.pack("@{}i".format(dlen), *p))
-                if bins == 1:
-                    if nobytes != 8:
-                        fp.write(struct.pack("@{}{}".format(dlen, "ih"[nobytes == 2]), *v))
-                    else:
-                        fp.write(struct.pack("@{}{}".format(dlen, "dd"[nobytes == 2]), *v))
-                else:
-                    fp.write(struct.pack("@{}{}".format(dlen, "dd"[nobytes == 2]), *v))
-
-    run = tiled_client_dask[ref]
-
+    uid = tiled_client_dask[ref].start["uid"]
+    run = tiled_client_dask[uid]
+    
     # Collect the metadata.
     md = get_run_metadata(run)
     md.update(get_file_metadata(run))
 
-    # Load the images.
+    # Load the images
     dask_images = run["primary"]["data"]["eiger4m_single_image"].read()
 
-    # Do a up/down flip of the images.
+    # Do a up/down flip of the images 
     dask_images = np.flip(dask_images, axis=2)
 
     # Rotate the images if the detector is eiger500K_single_image.
-    if md['detector'] =='eiger500K_single_image':
+    if md['detector'] =='eiger500K_single_image':    
         dask_images = np.rotate(dask_images, axis=(3,2))
 
-    # Perform the sparsification.
+    # Perform the sparsification,
     sparse_images = dask_images.map_blocks(sparse.COO).compute()
 
-    # Write image data to file.
-    # write_images(sparse_images)
 
     return sparse_images
-
-
-
-
-
-# Make the Prefect Flow.
-# A separate command is needed to register it with the Prefect server.
-with Flow("export") as flow:
-    ref = Parameter("ref")
-    processed_refs = sparsify(ref)
