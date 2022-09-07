@@ -1791,10 +1791,9 @@ def get_device_config(run, device_name):
 
 
 def get_file_metadata(run, detector="eiger4m_single_image"):
-    uid = run.start['uid']
-    header = tiled_client_v1[uid]
-    imgs = next(header.data(detector))
-    return imgs.md
+    dataset = run[f'{detector}_metadata_patched_in_at_runtime']['data'].read()
+    file_metadata = {key: dataset[key].values[0] for key in list(dataset)}
+    return file_metadata
 
 
 def get_run_metadata(run, default_dec="eiger", *argv, **kwargs):
