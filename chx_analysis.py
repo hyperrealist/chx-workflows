@@ -116,25 +116,25 @@ def get_pixel_mask(metadata):
 def get_bad_pixel_mask(metadata):
     bad_pixel_files = {'eiger4m_single_image': '/XF11ID/analysis/2019_2/BadPix_4M.npy',
                        'image': '/XF11ID/analysis/2019_2/BadPix_4M.npy'}
-    
+
     if bad_pixel_files.get(metadata['detector']):
         bad_pixel_list =  np.load(bad_pixel_files[metadata['detector']])
     else:
         bad_pixel_list =  np.array([], dtype=bool)
- 
+
     bad_pixel_mask = np.ones(shape=(2167, 2070))
     bad_pixel_mask.ravel()[bad_pixel_list] = 0
-    
+
     return bad_pixel_mask.astype(bool)
 
-        
+
 def get_chip_mask(metadata):
     chip_mask_files = {'eiger1m_single_image': '/XF11ID/analysis/2017_1/masks/Eiger1M_Chip_Mask.npy',
                        'eiger4m_single_image': '/XF11ID/analysis/2017_1/masks/Eiger4M_chip_mask.npy',
                        'image': '/XF11ID/analysis/2017_1/masks/Eiger4M_chip_mask.npy',
                        'eiger500K_single_image': '/XF11ID/analysis/2017_1/masks/Eiger500K_Chip_Mask.npy'}
-   
-    
+
+
     # Load the chip mask.
     assert chip_mask_files.get(metadata['detector'])
     chip_mask = np.load(chip_mask_files.get(metadata['detector']))
@@ -142,7 +142,7 @@ def get_chip_mask(metadata):
     return chip_mask.astype(bool)
 
 
-def get_mask():    
+def get_mask():
     mask_path = '/nsls2/data/chx/legacy/analysis/2022_2/masks/Jul11_2022_4M_SAXS.npy'
     mask = np.load(mask_path)
     mask = np.flip(mask, axis=0)
@@ -1887,7 +1887,7 @@ def get_run_metadata(run, default_dec="eiger", *argv, **kwargs):
             pass
 
     md.update(kwargs)
-    
+
     # Why don't the timestamps match?
     md['time'] = Timestamp(md['time'], unit='s')
 
@@ -2001,16 +2001,16 @@ def sparsify(
     if validate_uid(run):
         md = get_run_metadata(run)
         md.update(get_file_metadata(run))
-        if md['detector'] =='eiger4m_single_image' or md['detector'] == 'image':    
+        if md['detector'] =='eiger4m_single_image' or md['detector'] == 'image':
             reverse= True
             rot90= False
-        elif md['detector'] =='eiger500K_single_image':    
+        elif md['detector'] =='eiger500K_single_image':
             reverse= True
             rot90=True
-        elif md['detector'] =='eiger1m_single_image':    
+        elif md['detector'] =='eiger1m_single_image':
             reverse= True
             rot90=False
-        
+
         imgs = load_data(run, md["detector"], reverse=reverse, rot90=rot90)
         imgs2 = Images(data_array=imgs)
         imgs2.md = md
@@ -2080,7 +2080,7 @@ def sparsify_improved(ref):
 
     uid = tiled_client_dask[ref].start["uid"]
     run = tiled_client_dask[uid]
-    
+
     # Collect the metadata.
     md = get_run_metadata(run)
     md.update(get_file_metadata(run))
@@ -2088,11 +2088,11 @@ def sparsify_improved(ref):
     # Load the images
     dask_images = run["primary"]["data"]["eiger4m_single_image"].read()
 
-    # Do a up/down flip of the images 
+    # Do a up/down flip of the images
     dask_images = np.flip(dask_images, axis=2)
 
     # Rotate the images if the detector is eiger500K_single_image.
-    if md['detector'] =='eiger500K_single_image':    
+    if md['detector'] =='eiger500K_single_image':
         dask_images = np.rotate(dask_images, axis=(3,2))
 
     # Perform the sparsification,
