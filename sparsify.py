@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import prefect
 import sparse
+import tiled
 import time
 
 from collections import defaultdict
@@ -18,7 +19,7 @@ from tiled.structures.sparse import COOStructure
 EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 MASK_DIR = Path("/nsls2/data/chx/legacy/analysis/masks")
 
-tiled_client = from_profile("nsls2", username=None)["chx"]
+tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
 tiled_client_chx = tiled_client["raw"]
 tiled_client_sandbox = tiled_client["sandbox"]
 
@@ -84,192 +85,108 @@ def get_file_metadata(run, detector="eiger4m_single_image"):
 
     return file_metadata
 
+def get_detector(run):
+    """Get the first detector image name with "eiger" in it."""
+    keys = get_detectors(run)
+    for k in keys:
+        if "eiger" in k:
+            return k
 
-def get_run_metadata(run, default_dec="eiger", *argv, **kwargs):
-    """
-    Get metadata from a uid
 
-    - Adds detector key with detector name
-
-    Parameters:
-        uid: the unique data acquisition id
-        kwargs: overwrite the meta data, for example
-            get_run_metadata( uid = uid, sample = 'test') --> will overwrtie the meta's sample to test
-    return:
-        meta data of the uid: a dictionay
-        with keys:
-            detector
-            suid: the simple given uid
-            uid: full uid
-            filename: the full path of the data
-            start_time: the data acquisition starting time in a human readable manner
-        And all the input metadata
-    """
-
-    def get_sid_filenames(run):
-        """
-        Get a bluesky scan_id, unique_id, filename by giveing uid
-
-        Parameters
-        ----------
-        run: a BlueskyRun
-
-        Returns
-        -------
-        scan_id: integer
-        unique_id: string, a full string of a uid
-        filename: string
-        """
-
-        filepaths = []
-        resources = {}  # uid: document
-        datums = defaultdict(list)  # uid: List(document)
-        for name, doc in run.documents():
-            if name == "resource":
-                resources[doc["uid"]] = doc
-            elif name == "datum":
-                datums[doc["resource"]].append(doc)
-            elif name == "datum_page":
-                for datum in event_model.unpack_datum_page(doc):
-                    datums[datum["resource"]].append(datum)
-        for resource_uid, resource in resources.items():
-            file_prefix = Path(resource.get("root", "/"), resource["resource_path"])
-            if "eiger" not in resource["spec"].lower():
-                continue
-            for datum in datums[resource_uid]:
-                dm_kw = datum["datum_kwargs"]
-                seq_id = dm_kw["seq_id"]
-                new_filepaths = glob.glob(f"{file_prefix!s}_{seq_id}*")
-                filepaths.extend(new_filepaths)
-        return run.start["scan_id"], run.start["uid"], filepaths
-
-    def get_devices(run):
-        """
-        Return the names of the devices in this run.
-        Parameters
-        ----------
-        Returns
-        -------
-        devices: set
-        """
-        descriptors = []
-        for stream in run.values():
-            descriptors.extend(stream.descriptors)
-
-        devices = set()
-        for descriptor in descriptors:
-            devices.update(descriptor["object_keys"])
-
-        return devices
-
-    def get_detector(run):
-        """Get the first detector image name with "eiger" in it."""
-        keys = get_detectors(run)
-        for k in keys:
-            if "eiger" in k:
-                return k
-
-    def get_detectors(run):
-        """Get all the detector image strings for a run."""
-        if "primary" in list(run):
-            descriptor = run["primary"].descriptors[0]
-            keys = [k for k, v in descriptor["data_keys"].items() if "external" in v]
-            return sorted(set(keys))
-        else:
-            return []
-
-    def get_device_config(run, device_name):
-
-        result = defaultdict(list)
-
-        descriptors = []
-        for stream in run.values():
-            descriptors.extend(stream.descriptors)
-
-        for descriptor in sorted(descriptors, key=lambda d: d["time"]):
-            config = descriptor["configuration"].get(device_name)
-            if config:
-                result[descriptor.get("name")].append(config["data"])
-        return dict(result)["primary"][0]
-
-    if "verbose" in kwargs.keys():  # added: option to suppress output
-        verbose = kwargs["verbose"]
+def get_detectors(run):
+    """Get all the detector image strings for a run."""
+    if "primary" in list(run):
+        descriptor = run["primary"].descriptors[0]
+        keys = [k for k, v in descriptor["data_keys"].items() if "external" in v]
+        return sorted(set(keys))
     else:
-        verbose = True
+        return []
 
-    md = {}
 
-    md["suid"] = run.start["uid"].split("-")[0]  # short uid
-    try:
-        md["filename"] = get_sid_filenames(run)[2][0]
-    except Exception:
-        md["filename"] = "N.A."
+def get_device_configs(run):
+    """
+    Return the a configuration for the devices in the BlueskyRun.
+    
+    Parameters
+    ----------
+    run: BlueskyRun
 
-    devices = sorted(list(get_devices(run)))
-    if len(devices) > 1:
-        if verbose:  # added: mute output
-            print(
-                "More than one device. This would have unintented consequences.Currently, only the device contains 'default_dec=%s'."
-                % default_dec
-            )
+    Returns
+    -------
+    device_configs: dict
+    """
 
-    device_name = devices[0]
-    for dec_ in devices:
-        if default_dec in dec_:
-            device_name = dec_
+    descriptors = [descriptor for stream in run 
+                   for descriptor in run[stream].descriptors]
+    device_configs = {descriptor['name']: 
+                            [descriptor['configuration'].get(device, {}).get('data')
+                             for device in descriptor['object_keys']]
+                      for descriptor in descriptors}
+    return device_configs    
 
-    # print(dec)
-    # detector_names = sorted( header.start['detectors'] )
-    detector_names = sorted(get_detectors(run))
-    # if len(detector_names) > 1:
-    #    raise ValueError("More than one det. This would have unintented consequences.")
-    detector_name = detector_names[0]
-    # md['detector'] = detector_name
-    md["detector"] = get_detector(run)
-    # print( md['detector'] )
 
-    new_dict = get_device_config(run, device_name)
-    for key, val in new_dict.items():
-        newkey = key.replace(detector_name + "_", "")
-        md[newkey] = val
+def get_run_metadata(run, default_dec="eiger"):
+    """
+    Collect the BlueskyRun metadata.
+    
+    Parameters
+    ----------
+    run: a BlueskyRun
 
+    Returns
+    -------
+    metadata: dict
+        The BlueskyRun's metadata   
+    """
+
+    metadata = {}
+    metadata.update(run.start)
+    metadata["suid"] = run.start["uid"].split("-")[0]  # short uid
+    metadata.update(run.start.get('plan_args', {}))
+ 
+    # Get the device metadata.
+    # TODO: Make one function to get the device config for a run.
+    metadata.update(get_device_configs(run)[device_name])
+
+    # Get the detector name.
+    # TODO: Make one function, or no functions to get the detector name.
+    detectors = get_detectors(run)
+    assert len(detectors) == 1
+    detector_name = detectors[0]
+    metadata['detector'] = detector_name
+
+    # TODO: what does this do?
     # for k,v in ev['descriptor']['configuration'][dec]['data'].items():
-    #     md[ k[len(dec)+1:] ]= v
+    #     metadata[ k[len(dec)+1:] ]= v
+    
+    # Get filename prefix.
+    # We think we can still sparsify a run if there are no resources, 
+    # so we don't raise an exception if no resource is found.
+    for name, document in run.documents():
+        if name == 'resource':
+            metadata['filename'] = Path(resources[0].get("root", "/"), 
+                                        resources[0]["resource_path"])
+            break
 
-    try:
-        md.update(run.start["plan_args"].items())
-        md.pop("plan_args")
-    except Exception:
-        pass
-    md.update(run.start.items())
+    if "primary" in run:
+        descriptor = run["primary"].descriptors[0]
+        # data_keys is a required key in the descriptor document.
+        # detector_name must be in the descriptor.data_keys
+        metadata["img_shape"] = descriptor["data_keys"][detector_name].get('shape', [])[:2][::-1]
 
-    # print(header.start.time)
-    md["start_time"] = time.strftime(
+    # Fix up some datatypes.
+    metadata["number of images"] = int(metadata["number of images"])
+    metadata["start_time"] = time.strftime(
         "%Y-%m-%d %H:%M:%S", time.localtime(run.start["time"])
     )
-    md["stop_time"] = time.strftime(
+    metadata["stop_time"] = time.strftime(
         "%Y-%m-%d %H:%M:%S", time.localtime(run.stop["time"])
     )
-
-    try:  # added: try to handle runs that don't contain image data
-        if "primary" in run.keys():
-            descriptor = run["primary"].descriptors[0]
-            md["img_shape"] = descriptor["data_keys"][md["detector"]]["shape"][:2][::-1]
-    except Exception:
-        if verbose:
-            print("couldn't find image shape...skip!")
-        else:
-            pass
-
-    md.update(kwargs)
-
-    # Why don't the timestamps match?
-    # md['time'] = Timestamp(md['time'], unit='s')
-
-    md["number of images"] = int(md["number of images"])
-    return md
+    
+    return metadata
 
 
+#@task(result=prefect.engine.results.PrefectResult())
 @task
 def sparsify(ref):
     """
@@ -317,6 +234,8 @@ def sparsify(ref):
     sparse_images = masked_images.map_blocks(sparse.COO).compute()
 
     # Write sparse array to Tiled.
+    # TODO: Add the metadata to the processed data.
+    # TODO: Add reference to raw Bluesky Run in metadata.
     arr_coo_writer = tiled_client_sandbox.new(
         "sparse",
         COOStructure(
@@ -344,5 +263,12 @@ def sparsify(ref):
 # Make the Prefect Flow.
 # A separate command is needed to register it with the Prefect server.
 with Flow("sparsify") as flow:
+    logger = prefect.context.get("logger")
+    logger.info(f"tiled: {tiled.__version__}")
+    logger.info(f"databroker: {databroker.__version__}")
+    logger.info(f"sparse: {sparse.__version__}")
+    logger.info(f"profiles: {tiled.profiles.list_profiles()['nsls2']}")
     ref = Parameter("ref")
-    processed_refs = sparsify(ref)
+    processed_uid = sparsify(ref)
+    logger.info(f"Processed_uid: {processed_uid.result}")
+
