@@ -1,4 +1,5 @@
 import databroker
+import distributed
 import event_model
 import glob
 import h5py
@@ -19,6 +20,7 @@ from tiled.structures.sparse import COOStructure
 EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 MASK_DIR = Path("/nsls2/data/chx/legacy/analysis/masks")
 
+# distributed_client = distributed.Client(n_workers=1, threads_per_worker=1, processes=False)
 tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
 tiled_client_chx = tiled_client["raw"]
 tiled_client_sandbox = tiled_client["sandbox"]
@@ -139,13 +141,15 @@ def get_run_metadata(run):
     return metadata
 
 
-def write_sparse_chunk(data, dataset_id=None, block_info=None):
+def write_sparse_chunk(data, dataset_id=None, block_info=None, 
+                       dataset=None):
     result = sparse.COO(data)
 
     if block_info:
-        tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
-        tiled_client_sandbox = tiled_client["sandbox"]
-        dataset = tiled_client_sandbox[dataset_id]
+        if dataset is None:
+            tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
+            tiled_client_sandbox = tiled_client["sandbox"]
+            dataset = tiled_client_sandbox[dataset_id]
 
         dataset.write_block(
                 coords=result.coords,
@@ -201,20 +205,19 @@ def sparsify(ref):
     chunksize[1] = 5
     masked_images = masked_images.rechunk(chunksize)
     
-    coo_writer = tiled_client_sandbox.new(
+    dataset = tiled_client_sandbox.new(
         "sparse",
         COOStructure(
             shape=masked_images.shape,
             chunks=masked_images.chunks,
         ),
     )
-    dataset_id = coo_writer.item['id']
+    dataset_id = dataset.item['id']
     
     # Run sparsification and write the data to tiled in parallel.
-    sparse_images = masked_images.map_blocks(write_sparse_chunk, dataset_id).compute()
+    sparse_images = masked_images.map_blocks(write_sparse_chunk, dataset_id=dataset_id, dataset=dataset).compute()
 
-    processed_uid = coo_writer._item["id"]
-    return processed_uid
+    return dataset_id
 
 
 # Make the Prefect Flow.
