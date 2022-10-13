@@ -1,18 +1,10 @@
-import databroker
-import distributed
-import event_model
-import glob
-import h5py
-import matplotlib.pyplot as plt
 import numpy as np
 import prefect
 import sparse
 import tiled
 import time
 
-from collections import defaultdict
 from pathlib import Path
-from pandas import Timestamp
 from prefect import Flow, Parameter, task
 from tiled.client import from_profile
 from tiled.structures.sparse import COOStructure
@@ -141,7 +133,7 @@ def get_run_metadata(run):
     return metadata
 
 
-def write_sparse_chunk(data, dataset_id=None, block_info=None, 
+def write_sparse_chunk(data, dataset_id=None, block_info=None,
                        dataset=None):
     result = sparse.COO(data)
 
@@ -204,7 +196,7 @@ def sparsify(ref):
     chunksize = list(masked_images.chunksize)
     chunksize[1] = 5
     masked_images = masked_images.rechunk(chunksize)
-    
+
     dataset = tiled_client_sandbox.new(
         "sparse",
         COOStructure(
@@ -213,7 +205,7 @@ def sparsify(ref):
         ),
     )
     dataset_id = dataset.item['id']
-    
+
     # Run sparsification and write the data to tiled in parallel.
     sparse_images = masked_images.map_blocks(write_sparse_chunk, dataset_id=dataset_id, dataset=dataset).compute()
 
