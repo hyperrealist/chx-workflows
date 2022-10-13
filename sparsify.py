@@ -4,13 +4,13 @@ import sparse
 import tiled
 import time
 
+from masks import get_mask
 from pathlib import Path
 from prefect import Flow, Parameter, task
 from tiled.client import from_profile
 from tiled.structures.sparse import COOStructure
 
 EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
-MASK_DIR = Path("/nsls2/data/chx/legacy/analysis/masks")
 
 # distributed_client = distributed.Client(n_workers=1, threads_per_worker=1, processes=False)
 tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
@@ -23,50 +23,6 @@ run3 = tiled_client_chx["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
 
 run2_file_export = "/nsls2/data/dssi/scratch/prefect-outputs/chx/compressed_data/uid_e909f4a2-12e3-4521-a7a6-be2b728a826b.cmp"
 run2_file_chx = "/nsls2/data/chx/legacy/Compression_test/fluerasu/uid_e909f4a2-12e3-4521-a7a6-be2b728a826b.cmp"
-
-
-def get_pixel_mask(metadata):
-    return (1 - np.array(metadata["pixel_mask"], dtype=bool)).astype(bool)
-
-
-def get_bad_pixel_mask(metadata):
-    bad_pixel_files = {
-        "eiger4m_single_image": MASK_DIR / "BadPix_4M.npy",
-        "image": MASK_DIR / "BadPix_4M.npy",
-    }
-
-    if bad_pixel_files.get(metadata["detector"]):
-        bad_pixel_list = np.load(bad_pixel_files[metadata["detector"]])
-    else:
-        bad_pixel_list = np.array([], dtype=bool)
-
-    bad_pixel_mask = np.ones(shape=(2167, 2070))
-    bad_pixel_mask.ravel()[bad_pixel_list] = 0
-
-    return bad_pixel_mask.astype(bool)
-
-
-def get_chip_mask(metadata):
-    chip_mask_files = {
-        "eiger1m_single_image": MASK_DIR / "Eiger1M_Chip_Mask.npy",
-        "eiger4m_single_image": MASK_DIR / "Eiger4M_chip_mask.npy",
-        "image": MASK_DIR / "Eiger4M_chip_mask.npy",
-        "eiger500K_single_image": MASK_DIR / "Eiger500K_Chip_Mask.npy",
-    }
-
-    # Load the chip mask.
-    assert chip_mask_files.get(metadata["detector"])
-    chip_mask = np.load(chip_mask_files.get(metadata["detector"]))
-
-    return chip_mask.astype(bool)
-
-
-def get_custom_mask(
-    filename="/nsls2/data/chx/legacy/analysis/2022_2/masks/Jul11_2022_4M_SAXS.npy",
-):
-    mask = np.load(filename)
-    mask = np.flip(mask, axis=0)
-    return mask
 
 
 def get_file_metadata(run, detector="eiger4m_single_image"):
@@ -178,10 +134,10 @@ def sparsify(ref):
         dask_images = np.rotate(dask_images, axis=(3, 2))
 
     # Get the masks.
-    pixel_mask = get_pixel_mask(metadata)
-    chip_mask = get_chip_mask(metadata)
-    bad_pixel_mask = get_bad_pixel_mask(metadata)
-    custom_mask = get_custom_mask() # TODO: custom_mask should happen after the sparsification.
+    pixel_mask = get_mask('pixel_mask')
+    chip_mask = get_mask('eiger4m_chip_mask')
+    bad_pixel_mask = get_mask('bad_pixels_4m')
+    custom_mask = get_mask('jul11_2022_4m_saxs')
     final_mask = pixel_mask & chip_mask & bad_pixel_mask & custom_mask
 
     # Make the final mask the same shape as the images by extending the mask into a 3d array.
@@ -217,7 +173,6 @@ def sparsify(ref):
 with Flow("sparsify") as flow:
     logger = prefect.context.get("logger")
     logger.info(f"tiled: {tiled.__version__}")
-    logger.info(f"databroker: {databroker.__version__}")
     logger.info(f"sparse: {sparse.__version__}")
     logger.info(f"profiles: {tiled.profiles.list_profiles()['nsls2']}")
     ref = Parameter("ref")
