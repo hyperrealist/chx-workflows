@@ -17,32 +17,15 @@ tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
 tiled_client_chx = tiled_client["raw"]
 tiled_client_sandbox = tiled_client["sandbox"]
 
-run1 = tiled_client_chx["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
-run2 = tiled_client_chx["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
-run3 = tiled_client_chx["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
 
-run2_file_export = "/nsls2/data/dssi/scratch/prefect-outputs/chx/compressed_data/uid_e909f4a2-12e3-4521-a7a6-be2b728a826b.cmp"
-run2_file_chx = "/nsls2/data/chx/legacy/Compression_test/fluerasu/uid_e909f4a2-12e3-4521-a7a6-be2b728a826b.cmp"
-
-
-def get_file_metadata(run, detector="eiger4m_single_image"):
-    dataset = run[f"{detector}_metadata_patched_in_at_runtime"]["data"].read()
-    file_metadata = {key: dataset[key].values[0] for key in list(dataset)}
-
-    # Convert numpy arrays to lists.
-    for key in {"pixel_mask", "binary_mask"}:
-        file_metadata[key] = file_metadata[key].tolist()
-
-    return file_metadata
-
-
-def get_run_metadata(run):
+def get_metadata(run):
     """
     Collect the BlueskyRun metadata.
 
     Parameters
     ----------
-    run: a BlueskyRun
+    run: BlueskyRun
+    detector: string
 
     Returns
     -------
@@ -54,28 +37,32 @@ def get_run_metadata(run):
     metadata = {}
     metadata.update(run.start)
     metadata["suid"] = run.start["uid"].split("-")[0]  # short uid
-    metadata.update(run.start.get('plan_args', {}))
+    metadata.update(run.start.get("plan_args", {}))
 
-    # Get the device metadata.
-    detector = run.start['detectors'][0]
-    metadata['detector'] = f'{detector}_image'
+    # Get the detector metadata.
+    detector = run.start["detectors"][0]
+    metadata["detector"] = f"{detector}_image"
+    metadata['detectors'] = [detector]
     # Check if the method below applies to runs in general and not just for run2
-    metadata.update(run['primary'].descriptors[0]['configuration'][detector]['data'])
-
+    metadata.update(run["primary"].descriptors[0]["configuration"][detector]["data"])
 
     # Get filename prefix.
     # We think we can still sparsify a run if there are no resources,
     # so we don't raise an exception if no resource is found.
     for name, document in run.documents():
-        if name == 'resource':
-            metadata['filename'] = Path(document.get("root", "/"), document["resource_path"])
+        if name == "resource":
+            metadata["filename"] = Path(
+                document.get("root", "/"), document["resource_path"]
+            )
             break
 
     if "primary" in run:
         descriptor = run["primary"].descriptors[0]
         # data_keys is a required key in the descriptor document.
         # detector_name must be in the descriptor.data_keys
-        metadata["img_shape"] = descriptor["data_keys"][f'{detector}_image'].get('shape', [])[:2][::-1]
+        metadata["img_shape"] = descriptor["data_keys"][f"{detector}_image"].get(
+            "shape", []
+        )[:2][::-1]
 
     # Fix up some datatypes.
     metadata["number of images"] = int(metadata["number of images"])
@@ -86,11 +73,20 @@ def get_run_metadata(run):
         "%Y-%m-%d %H:%M:%S", time.localtime(run.stop["time"])
     )
 
+    # Get detector metadata
+    dataset = run[f"{detector}_image_metadata_patched_in_at_runtime"]["data"].read()
+    file_metadata = {key: dataset[key].values[0] for key in list(dataset)}
+
+    # Convert numpy arrays to lists.
+    for key in {"pixel_mask", "binary_mask"}:
+        file_metadata[key] = file_metadata[key].tolist()
+
+    metadata.update(file_metadata)
+
     return metadata
 
 
-def write_sparse_chunk(data, dataset_id=None, block_info=None,
-                       dataset=None):
+def write_sparse_chunk(data, dataset_id=None, block_info=None, dataset=None):
     result = sparse.COO(data)
 
     if block_info:
@@ -100,14 +96,14 @@ def write_sparse_chunk(data, dataset_id=None, block_info=None,
             dataset = tiled_client_sandbox[dataset_id]
 
         dataset.write_block(
-                coords=result.coords,
-                data=result.data,
-                block=block_info[None]['chunk-location'],
-            )
+            coords=result.coords,
+            data=result.data,
+            block=block_info[None]["chunk-location"],
+        )
     return data
 
 
-#@task
+# @task
 def sparsify(ref):
     """
     Performs sparsification.
@@ -123,21 +119,20 @@ def sparsify(ref):
     run = tiled_client_chx[ref]
 
     # Compose the run metadata.
-    metadata = get_run_metadata(run)
-    metadata.update(get_file_metadata(run))
+    metadata = get_metadata(run)
 
     # Load the images.
     dask_images = run["primary"]["data"]["eiger4m_single_image"].read()
 
     # Rotate the images if he detector is eiger500k_single_image.
-    if 'eiger500K_single_image' == metadata["detector"]:
+    if "eiger500K_single_image" == metadata["detector"]:
         dask_images = np.rotate(dask_images, axis=(3, 2))
 
     # Get the masks.
-    pixel_mask = get_mask('pixel_mask')
-    chip_mask = get_mask('eiger4m_chip_mask')
-    bad_pixel_mask = get_mask('bad_pixels_4m')
-    custom_mask = get_mask('jul11_2022_4m_saxs')
+    pixel_mask = get_mask("pixel_mask")
+    chip_mask = get_mask("eiger4m_chip_mask")
+    bad_pixel_mask = get_mask("bad_pixels_4m")
+    custom_mask = get_mask("jul11_2022_4m_saxs")
     final_mask = pixel_mask & chip_mask & bad_pixel_mask & custom_mask
 
     # Make the final mask the same shape as the images by extending the mask into a 3d array.
@@ -160,10 +155,12 @@ def sparsify(ref):
             chunks=masked_images.chunks,
         ),
     )
-    dataset_id = dataset.item['id']
+    dataset_id = dataset.item["id"]
 
     # Run sparsification and write the data to tiled in parallel.
-    sparse_images = masked_images.map_blocks(write_sparse_chunk, dataset_id=dataset_id, dataset=dataset).compute()
+    sparse_images = masked_images.map_blocks(
+        write_sparse_chunk, dataset_id=dataset_id, dataset=dataset
+    ).compute()
 
     return dataset_id
 
@@ -176,5 +173,5 @@ with Flow("sparsify") as flow:
     logger.info(f"sparse: {sparse.__version__}")
     logger.info(f"profiles: {tiled.profiles.list_profiles()['nsls2']}")
     ref = Parameter("ref")
-    #processed_uid = sparsify(ref)
-    #logger.info(f"Processed_uid: {processed_uid.result}")
+    # processed_uid = sparsify(ref)
+    # logger.info(f"Processed_uid: {processed_uid.result}")

@@ -34,29 +34,29 @@ def register_mask(mask, name, optional_metadata={}):
 
     """
     Save a mask into tiled.
-    
+
     Parameters
     ----------
     name: string
     mask: array
-        
+
     Returns
     -------
     node: tiled.Node
 
     """
 
-    metadata = {'spec': 'mask', 'name': name}
+    metadata = {"description": "mask", "name": name}
     metadata.update(optional_metadata)
 
-    masks = mask_client.search(Key('spec')=='mask').search(Key('name')==name)
+    masks = mask_client.search(Key("spec") == "mask").search(Key("name") == name)
     if len(masks):
         raise RuntimeError("A mask with this name already exists.")
-    
+
     result = mask_client.write_array(
-            mask,
-            metadata=metadata,
-        )
+        mask,
+        metadata=metadata,
+    )
 
     return result
 
@@ -65,7 +65,7 @@ def get_mask(name):
 
     """
     Get a mask from tiled.
-    
+
     Parameters
     ----------
     name: string
@@ -75,7 +75,7 @@ def get_mask(name):
     mask: DaskArray
     """
 
-    results = mask_client.search(Key('spec')=='mask').search(Key('name')==name)
+    results = mask_client.search(Key("spec") == "mask").search(Key("name") == name)
     assert len(results) == 1
 
     return results.values().first().read()
@@ -85,13 +85,13 @@ def delete_masks(name):
 
     """
     Delete a mask from tiled.
-    
+
     Parameters
     ----------
     name: string
     """
 
-    results = mask_client.search(Key('spec')=='mask').search(Key('name')==name)
+    results = mask_client.search(Key("spec") == "mask").search(Key("name") == name)
     uids = list(results)
     for uid in uids:
         del mask_client[uid]
@@ -101,11 +101,11 @@ def get_mask_names():
 
     """
     Get a list of the available masks.
-    
+
     Returns
     -------
     mask_names: list
     """
 
-    results = mask_client.search(Key('spec')=='mask')
-    return [node.metadata['name'] for node in results.values()]
+    results = mask_client.search(Key("spec") == "mask")
+    return [node.metadata["name"] for node in results.values()]
