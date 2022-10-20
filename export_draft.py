@@ -41,13 +41,14 @@ from databroker._legacy_images import Images
 
 EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 
-tiled_client = from_profile("chx", username=None, api_key=None)
-tiled_client_v1 = from_profile("chx", username=None, api_key=None).v1
-tiled_client_dask = from_profile("chx", "dask")
+tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
+tiled_client_chx = tiled_client["raw"]
+tiled_client_sandbox = tiled_client["sandbox"]
+
 #tiled_client = from_profile("nsls2", username=None)["chx"]["raw"]
-run1 = tiled_client["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
-run2 = tiled_client["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
-run3 = tiled_client["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
+run1 = tiled_client_chx["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
+run2 = tiled_client_chx["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
+run3 = tiled_client_chx["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
 
 run2_file_export = '/nsls2/data/dssi/scratch/prefect-outputs/chx/compressed_data/uid_e909f4a2-12e3-4521-a7a6-be2b728a826b.cmp'
 run2_file_chx = '/nsls2/data/chx/legacy/Compression_test/fluerasu/uid_e909f4a2-12e3-4521-a7a6-be2b728a826b.cmp'

@@ -42,7 +42,7 @@ def get_metadata(run):
     # Get the detector metadata.
     detector = run.start["detectors"][0]
     metadata["detector"] = f"{detector}_image"
-    metadata['detectors'] = [detector]
+    metadata["detectors"] = [detector]
     # Check if the method below applies to runs in general and not just for run2
     metadata.update(run["primary"].descriptors[0]["configuration"][detector]["data"])
 
@@ -100,6 +100,11 @@ def write_sparse_chunk(data, dataset_id=None, block_info=None, dataset=None):
             data=result.data,
             block=block_info[None]["chunk-location"],
         )
+
+    # Returning `data` instead of `result` gives a nice performance 
+    # improvment.  This causes dask not to update the resulting 
+    # dataset, which is not needed because we wrote the result 
+    # to tiled.
     return data
 
 
@@ -162,7 +167,7 @@ def sparsify(ref):
         write_sparse_chunk, dataset_id=dataset_id, dataset=dataset
     ).compute()
 
-    return dataset_id
+    return sparse_images, dataset_id
 
 
 # Make the Prefect Flow.
