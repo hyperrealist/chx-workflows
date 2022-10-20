@@ -153,6 +153,7 @@ def sparsify(ref):
     chunksize[1] = 5
     masked_images = masked_images.rechunk(chunksize)
 
+    # TODO: Add the metadata.
     dataset = tiled_client_sandbox.new(
         "sparse",
         COOStructure(
@@ -167,7 +168,7 @@ def sparsify(ref):
         write_sparse_chunk, dataset_id=dataset_id, dataset=dataset
     ).compute()
 
-    return sparse_images, dataset_id
+    return dataset_id
 
 
 # Make the Prefect Flow.

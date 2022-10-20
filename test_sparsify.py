@@ -3,7 +3,7 @@ import pytest
 import tiled
 
 from dictdiffer import diff
-from chx_compress.io.multifile.multifile import MultifileBNLCustom
+from chx_compress.io.multifile.multifile import multifile_reader
 from pandas import Timestamp
 from pathlib import Path
 from sparsify import get_metadata, sparsify
@@ -27,13 +27,23 @@ test_runs = (
 )
 
 
+def read_frame(multifile, image_index):
+    image_array = np.zeros((multifile.header_info['ncols'],
+                            multifile.header_info['nrows']))
+    np.put(image_array, *multifile[image_index])
+    return image_array.astype('uint16')
+
+
 @pytest.mark.parametrize("run_uid", test_runs)
 def test_get_metadata(run_uid):
     """
     Check that the metadata from get_metadata matches the original
     metadata.
     """
+ 
     run = tiled_client_chx[run_uid]
+    
+    # TODO: Dont use MultifileBNLCustom
     metadata_original = MultifileBNLCustom(
         f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
     ).md
@@ -65,13 +75,16 @@ def test_sparsify(run_uid):
     Make sure that the processed data from sparisfy  
     matches the original proccesed data.
     """
-    original_data = MultifileBNLCustom(
+
+    # TODO: Maybe test data should be copied into this repo.
+    original_data = multifile_reader(
         f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
     )
 
-    new_data, _ = sparsify(run_uid)
+    new_uid = sparsify(run_uid)
+    new_data = tiled_client_sandbox[processed_uid]
 
     for frame_number in range(new_data.shape[1]):
         assert np.array_equal(new_data[0][frame_number].todense(),
-                              original_data.rdframe(frame_number).astype('uint16'))
+                              read_frame(original_data, frame_number))
 
