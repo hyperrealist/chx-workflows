@@ -20,10 +20,10 @@ run2 = tiled_client_chx["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
 run3 = tiled_client_chx["b79184e1-d053-42e4-b1eb-f8ab0a146220"]
 
 test_runs = (
-    "14ed6885-2b6a-4645-85a2-a09413f618c2",
-    "961b07ca-2133-46f9-8337-57053baa011b",
-    "eaf4d7df-2585-460a-8d9c-5a53613782e7",
-    "e909f4a2-12e3-4521-a7a6-be2b728a826b",
+    "14ed6885-2b6a-4645-85a2-a09413f618c2", # Needs rootmap
+    "961b07ca-2133-46f9-8337-57053baa011b", # Very dense. Working.
+    "eaf4d7df-2585-460a-8d9c-5a53613782e7", # Need the correct masks.
+    "e909f4a2-12e3-4521-a7a6-be2b728a826b", # Working.
 )
 
 
@@ -42,13 +42,11 @@ def test_get_metadata(run_uid):
     """
  
     run = tiled_client_chx[run_uid]
-    
-    # TODO: Dont use MultifileBNLCustom
-    metadata_original = MultifileBNLCustom(
-        f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
-    ).md
-
     metadata_new = get_metadata(run)
+    
+    original_data = multifile_reader(
+        f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
+    ).header_info
 
     # TODO: figure out if these exceptions are needed.
     # And figure out how these values get into the Multifile.
@@ -75,13 +73,11 @@ def test_sparsify(run_uid):
     Make sure that the processed data from sparisfy  
     matches the original proccesed data.
     """
-
-    # TODO: Maybe test data should be copied into this repo.
     original_data = multifile_reader(
         f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
     )
 
-    new_uid = sparsify(run_uid)
+    processed_uid = sparsify(run_uid)
     new_data = tiled_client_sandbox[processed_uid]
 
     for frame_number in range(new_data.shape[1]):
