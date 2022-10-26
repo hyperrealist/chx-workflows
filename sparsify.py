@@ -4,7 +4,8 @@ import sparse
 import tiled
 import time
 
-from masks import get_mask
+from functools import reduce
+from masks import get_combined_mask, get_mask_uid
 from pathlib import Path
 from prefect import Flow, Parameter, task
 from tiled.client import from_profile
@@ -51,9 +52,9 @@ def get_metadata(run):
     # so we don't raise an exception if no resource is found.
     for name, document in run.documents():
         if name == "resource":
-            metadata["filename"] = str(Path(
-                document.get("root", "/"), document["resource_path"]
-            ))
+            metadata["filename"] = str(
+                Path(document.get("root", "/"), document["resource_path"])
+            )
             break
 
     if "primary" in run:
@@ -78,13 +79,13 @@ def get_metadata(run):
     file_metadata = {key: dataset[key].values[0] for key in list(dataset)}
 
     # Convert numpy arrays to lists.
-    #for key in {"pixel_mask", "binary_mask"}:
+    # for key in {"pixel_mask", "binary_mask"}:
     #    file_metadata[key] = file_metadata[key].tolist()
-    
+
     metadata.update(file_metadata)
-    del metadata['pixel_mask']
-    del metadata['binary_mask']
-   
+    del metadata["pixel_mask"]
+    del metadata["binary_mask"]
+
     return metadata
 
 
@@ -103,15 +104,18 @@ def write_sparse_chunk(data, dataset_id=None, block_info=None, dataset=None):
             block=block_info[None]["chunk-location"],
         )
 
-    # Returning `data` instead of `result` gives a nice performance 
-    # improvment.  This causes dask not to update the resulting 
-    # dataset, which is not needed because we wrote the result 
+    # Returning `data` instead of `result` gives a nice performance
+    # improvment.  This causes dask not to update the resulting
+    # dataset, which is not needed because we wrote the result
     # to tiled.
     return data
 
 
 # @task
-def sparsify(ref):
+def sparsify(
+    ref, 
+    mask_names=["pixel_mask", "chip_mask", "bad_pixels", "jul11_2022_4m_saxs"]
+):
     """
     Performs sparsification.
 
@@ -120,41 +124,48 @@ def sparsify(ref):
     ref: string
         This is the reference to the BlueskyRun to be exported. It can be
         a partial uid, a full uid, a scan_id, or an index (e.g. -1).
+    mask_names: list
+        A list of mask names to be applied.
 
+    Returns
+    -------
+    dataset_uid: string
+        The uid of the resulting dataset.
     """
     # Get the BlueskyRun from Tiled.
     run = tiled_client_chx[ref]
 
     # Compose the run metadata.
     metadata = get_metadata(run)
+    detector = metadata["detector"]
 
     # Load the images.
-    dask_images = run["primary"]["data"][metadata['detector']].read()
+    dask_images = run["primary"]["data"][metadata["detector"]].read()
 
     # Rotate the images if he detector is eiger500k_single_image.
-    if "eiger500K_single_image" == metadata["detector"]:
+    if detector == "eiger500K_single_image":
         dask_images = np.rot90(dask_images, axes=(3, 2))
 
     # Get the masks.
-    pixel_mask = get_mask("pixel_mask")
-    chip_mask = get_mask("eiger4m_chip_mask")
-    bad_pixel_mask = get_mask("bad_pixels_4m")
-    custom_mask = get_mask("jul11_2022_4m_saxs")
-    final_mask = pixel_mask & chip_mask & bad_pixel_mask & custom_mask
+    metadata['masks_names'] = mask_names
+    metadata['mask_uids'] = [get_mask_uid(detector, mask_name) 
+                             for mask_name in mask_names]
+    mask = get_combined_mask(detector, mask_names)
 
-    # Make the final mask the same shape as the images by extending the mask into a 3d array.
+    # Make the mask the same shape as the images
+    # by extending the mask into a 3d array.
     num_images = dask_images.shape[1]
-    mask3d = np.broadcast_to(final_mask, (num_images,) + final_mask.shape)
+    mask3d = np.broadcast_to(mask, (num_images,) + mask.shape)
 
     # Flip the images.
     flipped_images = np.flip(dask_images, axis=2)
 
     # Apply the mask to flipped images.
     masked_images = flipped_images * mask3d
-    
+
     # Let dask pick the chunk size.
-    masked_images = masked_images.rechunk()
-    
+    masked_images = masked_images.rechunk(block_size_limit=75_000_000)
+
     # Create a new dataset in tiled.
     dataset = tiled_client_sandbox.new(
         "sparse",
