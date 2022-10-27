@@ -3,10 +3,7 @@ import tiled
 
 from functools import reduce
 from pathlib import Path
-from tiled.client import from_profile
 from tiled.queries import Key
-
-mask_client = from_profile("nsls2", "dask", username=None)["chx"]["sandbox"]
 
 
 def load_array_from_file(filename):
@@ -31,135 +28,158 @@ def list_to_mask(pixel_list, shape=(2167, 2070)):
     return pixel_mask.astype(bool)
 
 
-def register_mask(detector, name, mask, optional_metadata={}):
-
+class MaskClient:
     """
-    Save a mask into tiled.
-
-    Parameters
-    ----------
-    name: string
-    detector: string
-        The name of the detector that the mask is for.
-    mask: array
-
-    Returns
-    -------
-    node: tiled.Node
-
+    MaskClient is a client for a tiled mask database.
+    
+    - Each registered Mask has a unique identifier (uid).
+    - Arbitrary metadata can be registered along with the Mask.
+    - We can search for Masks by detector, name, or other metadata.
+    - A Mask is a NumPy array of Bools, that matches the detector shape, 
+      where False represents the values to be masked. 
+    - detector_name + name is unique.  
+    - When you get a Mask from the registry it's type is a DaskArray, 
+      this is to support laziness and parallelization. To get the NumPy 
+      Array call compute() on it.
     """
+    
+    def __init__(self, tiled_client):
+        self._tiled_client = tiled_client
 
-    metadata = {"spec": "mask", "name": name, 'detector': detector}
-    metadata.update(optional_metadata)
+    @classmethod
+    def from_profile(cls, *args, **kwargs):
+        return cls(tiled.client.from_profile(*args, **kwargs))
 
-    # Make sure the mask doesn't already exist.
-    masks = mask_client.search(Key("spec") == "mask") \
-                       .search(Key("name") == name) \
-                       .search(Key("detector") == detector)
-    if len(masks):
-        raise RuntimeError("A mask with this name and detector already exists.")
+    def register_mask(self, detector, name, mask, optional_metadata={}):
 
-    result = mask_client.write_array(
-        mask,
-        metadata=metadata,
-    )
+        """
+        Save a mask into tiled.
 
-    return result
+        Parameters
+        ----------
+        name: string
+        detector: string
+            The name of the detector that the mask is for.
+        mask: array
 
+        Returns
+        -------
+        node: tiled.Node
 
-def get_mask(detector, name):
+        """
 
-    """
-    Get a mask from tiled.
+        metadata = {"spec": "mask", "name": name, 'detector': detector}
+        metadata.update(optional_metadata)
 
-    Parameters
-    ----------
-    detector: string
-    name: string
+        # Make sure the mask doesn't already exist.
+        masks = self._tiled_client.search(Key("spec") == "mask") \
+                           .search(Key("name") == name) \
+                           .search(Key("detector") == detector)
+        if len(masks):
+            raise RuntimeError("A mask with this name and detector already exists.")
 
-    Returns
-    -------
-    mask: DaskArray
-    """
+        result = self._tiled_client.write_array(
+            mask,
+            metadata=metadata,
+        )
 
-    results = mask_client.search(Key("spec") == "mask") \
-                         .search(Key("name") == name) \
-                         .search(Key('detector') == detector)
-    assert len(results) == 1
-    return results.values().first().read()
-
-
-def get_combined_mask(detector, mask_names):
-
-    """
-    Get a mask from tiled.
-
-    Parameters
-    ----------
-    detector: string
-    mask_names: list
-        list of mask_names
-
-    Returns
-    -------
-    mask: DaskArray
-    """
-
-    masks = [get_mask(detector, mask) for mask in mask_names]
-    return reduce(lambda x, y: x & y, masks)
+        return result
 
 
-def get_mask_uid(detector, name):
+    def get_mask(self, detector, name):
 
-    """
-    Get a mask_uid from tiled.
+        """
+        Get a mask from tiled.
 
-    Parameters
-    ----------
-    detector: string
-    name: string
+        Parameters
+        ----------
+        detector: string
+        name: string
 
-    Returns
-    -------
-    uid: string
-    """
+        Returns
+        -------
+        mask: DaskArray
+        """
 
-    results = mask_client.search(Key("spec") == "mask") \
-                         .search(Key("name") == name) \
-                         .search(Key('detector') == detector)
-    assert len(results) == 1
-    return list(results)[0]
-
-
-def delete_masks(detector, name):
-
-    """
-    Delete a mask from tiled.
-
-    Parameters
-    ----------
-    detector: string
-    name: string
-    """
-
-    results = mask_client.search(Key("spec") == "mask") \
-                         .search(Key("name") == name) \
-                         .search(Key('detector') == detector)
-    uids = list(results)
-    for uid in uids:
-        del mask_client[uid]
+        results = self._tiled_client.search(Key("spec") == "mask") \
+                                    .search(Key("name") == name) \
+                                    .search(Key('detector') == detector)
+        assert len(results) == 1
+        return results.values().first().read()
 
 
-def get_masks():
+    def get_composite_mask(self, detector, mask_names):
 
-    """
-    Get a list of the available masks.
+        """
+        Get a composite mask from tiled.
+        This combines all masks in the list mask_names and returns a single mask.
 
-    Returns
-    -------
-    mask_names: list
-    """
+        Parameters
+        ----------
+        detector: string
+        mask_names: list
+            list of mask_names
 
-    results = mask_client.search(Key("spec") == "mask")
-    return [(node.metadata.get('detector', 'any'), node.metadata["name"]) 
-            for node in results.values()]
+        Returns
+        -------
+        mask: DaskArray
+        """
+
+        masks = [self.get_mask(detector, mask) for mask in mask_names]
+        return reduce(lambda x, y: x & y, masks)
+
+
+    def get_mask_uid(self, detector, name):
+
+        """
+        Get a mask_uid from tiled.
+
+        Parameters
+        ----------
+        detector: string
+        name: string
+
+        Returns
+        -------
+        uid: string
+        """
+
+        results = self._tiled_client.search(Key("spec") == "mask") \
+                                    .search(Key("name") == name) \
+                                    .search(Key('detector') == detector)
+        assert len(results) == 1
+        return list(results)[0]
+
+
+    def delete_mask(self, detector, name):
+
+        """
+        Delete a mask from tiled.
+
+        Parameters
+        ----------
+        detector: string
+        name: string
+        """
+
+        results = self._tiled_client.search(Key("spec") == "mask") \
+                                    .search(Key("name") == name) \
+                                    .search(Key('detector') == detector)
+        uids = list(results)
+        for uid in uids:
+            del self._tiled_client[uid]
+
+
+    def get_masks(self):
+
+        """
+        Get a list of the available masks.
+
+        Returns
+        -------
+        mask_names: list
+        """
+
+        results = self._tiled_client.search(Key("spec") == "mask")
+        return [(node.metadata.get('detector', 'any'), node.metadata["name"]) 
+                for node in results.values()]
