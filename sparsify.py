@@ -137,21 +137,21 @@ def sparsify(
 
     # Compose the run metadata.
     metadata = get_metadata(run)
-    detector = metadata["detector"]
+    detector_name = metadata["detector"]
 
     # Load the images.
-    dask_images = run["primary"]["data"][metadata["detector"]].read()
+    dask_images = run["primary"]["data"][detector_name].read()
 
     # Rotate the images if he detector is eiger500k_single_image.
-    if detector == "eiger500K_single_image":
+    if detector_name == "eiger500K_single_image":
         dask_images = np.rot90(dask_images, axes=(3, 2))
 
     # Get the masks.
     mask_client = MaskClient(tiled_client_sandbox)
     metadata['masks_names'] = mask_names
-    metadata['mask_uids'] = [mask_client.get_mask_uid(detector, mask_name) 
+    metadata['mask_uids'] = [mask_client.get_mask_uid(detector_name, mask_name) 
                              for mask_name in mask_names]
-    mask = mask_client.get_composite_mask(detector, mask_names)
+    mask = mask_client.get_composite_mask(detector_name, mask_names)
 
     # Make the mask the same shape as the images
     # by extending the mask into a 3d array.
