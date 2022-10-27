@@ -5,7 +5,7 @@ import tiled
 import time
 
 from functools import reduce
-from masks import get_combined_mask, get_mask_uid
+from masks import MaskClient
 from pathlib import Path
 from prefect import Flow, Parameter, task
 from tiled.client import from_profile
@@ -147,10 +147,11 @@ def sparsify(
         dask_images = np.rot90(dask_images, axes=(3, 2))
 
     # Get the masks.
+    mask_client = MaskClient(tiled_client_sandbox)
     metadata['masks_names'] = mask_names
-    metadata['mask_uids'] = [get_mask_uid(detector, mask_name) 
+    metadata['mask_uids'] = [mask_client.get_mask_uid(detector, mask_name) 
                              for mask_name in mask_names]
-    mask = get_combined_mask(detector, mask_names)
+    mask = mask_client.get_composite_mask(detector, mask_names)
 
     # Make the mask the same shape as the images
     # by extending the mask into a 3d array.
