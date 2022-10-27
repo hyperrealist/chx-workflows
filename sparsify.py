@@ -26,7 +26,6 @@ def get_metadata(run):
     Parameters
     ----------
     run: BlueskyRun
-    detector: string
 
     Returns
     -------
@@ -140,46 +139,43 @@ def sparsify(
     detector_name = metadata["detector"]
 
     # Load the images.
-    dask_images = run["primary"]["data"][detector_name].read()
+    images = run["primary"]["data"][detector_name].read()
 
     # Rotate the images if he detector is eiger500k_single_image.
     if detector_name == "eiger500K_single_image":
-        dask_images = np.rot90(dask_images, axes=(3, 2))
+        images = np.rot90(images, axes=(3, 2))
 
-    # Get the masks.
+    # Get the mask.
     mask_client = MaskClient(tiled_client_sandbox)
     metadata['masks_names'] = mask_names
     metadata['mask_uids'] = [mask_client.get_mask_uid(detector_name, mask_name) 
                              for mask_name in mask_names]
     mask = mask_client.get_composite_mask(detector_name, mask_names)
 
-    # Make the mask the same shape as the images
-    # by extending the mask into a 3d array.
-    num_images = dask_images.shape[1]
-    mask3d = np.broadcast_to(mask, (num_images,) + mask.shape)
-
     # Flip the images.
-    flipped_images = np.flip(dask_images, axis=2)
+    images = np.flip(images, axis=2)
 
-    # Apply the mask to flipped images.
-    masked_images = flipped_images * mask3d
+    # Apply the mask.
+    image_count = images.shape[1]
+    mask = np.broadcast_to(mask, (image_count,) + mask.shape)
+    images = images * mask
 
     # Let dask pick the chunk size.
-    masked_images = masked_images.rechunk(block_size_limit=75_000_000)
+    images = images.rechunk(block_size_limit=75_000_000)
 
     # Create a new dataset in tiled.
     dataset = tiled_client_sandbox.new(
         "sparse",
         COOStructure(
-            shape=masked_images.shape,
-            chunks=masked_images.chunks,
+            shape=images.shape,
+            chunks=images.chunks,
         ),
         metadata=metadata,
     )
     dataset_id = dataset.item["id"]
 
     # Run sparsification and write the data to tiled in parallel.
-    sparse_images = masked_images.map_blocks(
+    _ = images.map_blocks(
         write_sparse_chunk, dataset_id=dataset_id, dataset=dataset
     ).compute()
 
