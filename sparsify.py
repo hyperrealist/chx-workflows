@@ -148,8 +148,7 @@ def sparsify(
     # Get the mask.
     mask_client = MaskClient(tiled_client_sandbox)
     metadata['masks_names'] = mask_names
-    metadata['mask_uids'] = [mask_client.get_mask_uid(detector_name, mask_name) 
-                             for mask_name in mask_names]
+    metadata['mask_uids'] = mask_client.get_mask_uids(detector_name, mask_names)
     mask = mask_client.get_composite_mask(detector_name, mask_names)
 
     # Flip the images.
@@ -161,6 +160,7 @@ def sparsify(
     images = images * mask
 
     # Let dask pick the chunk size.
+    # Set the block_size_limit equal to the tiled size limit.
     images = images.rechunk(block_size_limit=75_000_000)
 
     # Create a new dataset in tiled.

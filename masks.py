@@ -85,7 +85,6 @@ class MaskClient:
 
         return result
 
-
     def get_mask(self, detector, name):
 
         """
@@ -107,6 +106,22 @@ class MaskClient:
         assert len(results) == 1
         return results.values().first().read()
 
+    def get_mask_by_uid(self, uid):
+
+        """
+        Get a mask from tiled.
+
+        Parameters
+        ----------
+        detector: string
+        name: string
+
+        Returns
+        -------
+        mask: DaskArray
+        """
+
+        return self._tiled_client[uid].read()
 
     def get_composite_mask(self, detector, mask_names):
 
@@ -127,7 +142,6 @@ class MaskClient:
 
         masks = [self.get_mask(detector, mask) for mask in mask_names]
         return reduce(lambda x, y: x & y, masks)
-
 
     def get_mask_uid(self, detector, name):
 
@@ -150,7 +164,24 @@ class MaskClient:
         assert len(results) == 1
         return list(results)[0]
 
+    def get_mask_uids(self, detector, names):
 
+        """
+        Get a list of mask_uids.
+
+        Parameters
+        ----------
+        detector: string
+        names: list
+
+        Returns
+        -------
+        uid: list
+            A list of mask uids.
+        """
+
+        return [self.get_mask_uid(detector, name) for name in names]
+    
     def delete_mask(self, detector, name):
 
         """
@@ -168,7 +199,6 @@ class MaskClient:
         uids = list(results)
         for uid in uids:
             del self._tiled_client[uid]
-
 
     def get_masks(self):
 
