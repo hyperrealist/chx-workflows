@@ -10,7 +10,7 @@
 - We can search for Masks by detector, name, or other metadata.
 - A Mask is a NumPy array of Bools, that matches the detector shape, where False represents the values to be masked.
 - detector_name + name is unique
-- When you get a Mask from the registry is type is a DaskArray, this is to support laziness and parallelization.  To get the NumPy Array call `compute()` on it.
+- When you get a Mask from the registry it's type is a DaskArray, this is to support laziness and parallelization.  To get the NumPy Array call `compute()` on it.
 
 
 **Register a Mask**
