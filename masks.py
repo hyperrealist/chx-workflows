@@ -5,7 +5,11 @@ from functools import reduce
 from pathlib import Path
 from tiled.queries import Key
 
-# TODO:Add a dictionery to capture mask-shape and detector mapping
+# TODO: Check that the mask shape is correct when registering a mask.
+DETECTORS = {'eiger4m_single_image': (2167, 2070),
+             'eiger1m_single_image': (1065, 1030),
+             'eiger500K_single_image': (514, 1030)}
+
 
 def load_array_from_file(filename):
 
