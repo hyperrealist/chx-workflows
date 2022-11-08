@@ -110,7 +110,6 @@ def write_sparse_chunk(data, dataset_id=None, block_info=None, dataset=None):
     return data
 
 
-# @task
 def sparsify(
     ref, 
     mask_names=["pixel_mask", "chip_mask", "bad_pixels", "jul11_2022_4m_saxs"]
@@ -190,5 +189,5 @@ with Flow("sparsify") as flow:
     logger.info(f"sparse: {sparse.__version__}")
     logger.info(f"profiles: {tiled.profiles.list_profiles()['nsls2']}")
     ref = Parameter("ref")
-    # processed_uid = sparsify(ref)
-    # logger.info(f"Processed_uid: {processed_uid.result}")
+    processed_uid = task(sparsify)(ref)
+    logger.info(f"Processed_uid: {processed_uid.result}")
