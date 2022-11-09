@@ -33,7 +33,7 @@ It prints the detector_name, mask_name, and version.
     
     
 
-**R****egister a Mask**
+**Register a Mask**
 Version is optional and defaults to 0.
 
 
