@@ -1,3 +1,4 @@
+import filecmp
 import numpy as np
 import pytest
 import tiled
@@ -84,3 +85,17 @@ def test_sparsify(run_uid):
         assert np.array_equal(new_data[0][frame_number].todense(),
                               read_frame(original_data, frame_number))
 
+
+@pytest.mark.parametrize("run_uid", test_runs)
+def test_multifile(run_uid):
+    """
+    Make sure that the processed data from sparisfy  
+    matches the original proccesed data.
+    """
+    original_file = f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
+    processed_uid = sparsify(run_uid)
+    processed_data = tiled_client_sandbox[processed_uid]
+    
+    # TODO: Figure out what this line should be.
+    new_file = processed_data.get_multifile()
+    assert filecmp.cmp(original_file, new_file)

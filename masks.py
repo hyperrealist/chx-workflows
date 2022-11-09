@@ -6,9 +6,9 @@ from pathlib import Path
 from tiled.queries import Key
 
 # TODO: Check that the mask shape is correct when registering a mask.
-DETECTORS = {'eiger4m_single_image': (2167, 2070),
-             'eiger1m_single_image': (1065, 1030),
-             'eiger500K_single_image': (514, 1030)}
+DETECTOR_SHAPES = {'eiger4m_single_image': (2167, 2070),
+                   'eiger1m_single_image': (1065, 1030),
+                   'eiger500K_single_image': (514, 1030)}
 
 
 def load_array_from_file(filename):
