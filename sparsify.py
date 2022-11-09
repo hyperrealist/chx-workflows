@@ -146,6 +146,8 @@ def sparsify(
 
     # Get the mask.
     mask_client = MaskClient(tiled_client_sandbox)
+    masks = [mask_client.get_mask(detector_name, mask_name) 
+             for mask_name in mask_names]
     metadata['masks_names'] = mask_names
     metadata['mask_uids'] = mask_client.get_mask_uids(detector_name, mask_names)
     mask = mask_client.get_composite_mask(detector_name, mask_names)

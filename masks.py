@@ -98,15 +98,15 @@ class MaskClient:
             raise ValueError("The mask must be a numpy.ndarray.")
 
         if mask.shape != DETECTOR_SHAPES[detector]:
-            raise ValueError("Mask shape {mask.shape} does not match the detector" 
+            raise ValueError("Mask shape {mask.shape} does not match the detector"
                              " shape {DETECTOR_SHAPES[detector].")
 
         if mask.dtype != dtype('bool'):
             raise ValueError("Mask dtype {mask.dtype} must be dtype('bool').")
-    
-        metadata = {"spec": "mask", 
-                    "name": name, 
-                    'detector': detector, 
+
+        metadata = {"spec": "mask",
+                    "name": name,
+                    'detector': detector,
                     'version': version}
 
         metadata.update(optional_metadata)
@@ -141,23 +141,29 @@ class MaskClient:
 
         Returns
         -------
+        mask_uid: str
         mask: DaskArray
         """
 
         results = self._tiled_client.search(Key("spec") == "mask") \
                                     .search(Key("name") == name) \
                                     .search(Key('detector') == detector)
-    
-        sorted_results = sorted(results.values(), 
-                                key=lambda node: node.metadata.get('version'))  
 
-        return sorted_results[-1].read()
+        if version is None:
+            uid, mask = max(results.items(), 
+                            key=lambda item: item[1].metadata['version'])
+        else:
+            results = results.search(Key('version') == version)
+            assert len(results) == 1
+            uid, mask = list(results.items())[0]
+
+        return uid, mask.read()
 
     def get_mask_by_uid(self, uid):
 
         """
         Get a mask from tiled.
-
+nod
         Parameters
         ----------
         uid: string
@@ -208,7 +214,7 @@ class MaskClient:
                                     .search(Key("name") == name) \
                                     .search(Key('detector') == detector) \
                                     .search(Key('version') == version)
-        
+
         uids = list(results)
         for uid in uids:
             del self._tiled_client[uid]
@@ -224,7 +230,7 @@ class MaskClient:
         """
 
         results = self._tiled_client.search(Key("spec") == "mask")
-        return [(node.metadata.get('detector', 'any'), 
-                 node.metadata["name"], 
+        return [(node.metadata.get('detector', 'any'),
+                 node.metadata["name"],
                  node.metadata.get("version"))
                 for node in results.values()]
