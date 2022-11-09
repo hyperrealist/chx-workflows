@@ -93,9 +93,8 @@ def test_multifile(run_uid):
     matches the original proccesed data.
     """
     original_file = f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
+    new_file = f"/tmp/{processed_uid}.cmp"
     processed_uid = sparsify(run_uid)
     processed_data = tiled_client_sandbox[processed_uid]
-    
-    # TODO: Figure out what this line should be.
-    new_file = processed_data.get_multifile()
+    processed_data.export(new_file, format='application/x-eiger-multifile')
     assert filecmp.cmp(original_file, new_file)
