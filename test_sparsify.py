@@ -89,8 +89,7 @@ def test_sparsify(run_uid):
 @pytest.mark.parametrize("run_uid", test_runs)
 def test_multifile(run_uid):
     """
-    Make sure that the processed data from sparisfy  
-    matches the original proccesed data.
+    Make sure that the new multifile matches the original multifile.
     """
     original_file = f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
     new_file = f"/tmp/{processed_uid}.cmp"
