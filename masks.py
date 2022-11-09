@@ -2,6 +2,7 @@ import numpy as np
 import tiled
 
 from functools import reduce
+from numpy import dtype
 from pathlib import Path
 from tiled.queries import Key
 
@@ -38,18 +39,18 @@ def combine_masks(masks):
         """
         Get a composite mask from tiled.
         This does not support version specification.
-        This combines all masks in the list mask_names and returns a single mask.
+        This combines all masks in the list masks and returns a single mask.
 
         Parameters
         ----------
-        detector: string
-        mask_names: list
-            list of mask_names
+        masks: list
+            list of masks
 
         Returns
         -------
         mask: DaskArray
         """
+
         return reduce(lambda x, y: x & y, masks)
 
 class MaskClient:
@@ -61,7 +62,7 @@ class MaskClient:
     - We can search for Masks by detector, name, or other metadata.
     - A Mask is a NumPy array of Bools, that matches the detector shape,
       where False represents the values to be masked.
-    - detector_name + name is unique.
+    - detector_name + mask_name + version is unique.
     - When you get a Mask from the registry it's type is a DaskArray,
       this is to support laziness and parallelization. To get the NumPy
       Array call compute() on it.
@@ -84,7 +85,7 @@ class MaskClient:
         name: string
         detector: string
             The name of the detector that the mask is for.
-        mask: array
+        mask: numpy.ndarray
         version: integer, optional
             Verion information
 
@@ -93,8 +94,21 @@ class MaskClient:
         node: tiled.Node
 
         """
+        if not isinstance(mask, np.ndarray):
+            raise ValueError("The mask must be a numpy.ndarray.")
 
-        metadata = {"spec": "mask", "name": name, 'detector': detector, 'version': version}
+        if mask.shape != DETECTOR_SHAPES[detector]:
+            raise ValueError("Mask shape {mask.shape} does not match the detector" 
+                             " shape {DETECTOR_SHAPES[detector].")
+
+        if mask.dtype != dtype('bool'):
+            raise ValueError("Mask dtype {mask.dtype} must be dtype('bool').")
+    
+        metadata = {"spec": "mask", 
+                    "name": name, 
+                    'detector': detector, 
+                    'version': version}
+
         metadata.update(optional_metadata)
 
         # Make sure the mask doesn't already exist.
@@ -155,7 +169,7 @@ class MaskClient:
 
         return self._tiled_client[uid].read()
 
-    def get_mask_uid(self, detector, name, version=0):
+    def get_mask_uid(self, detector, name, version):
 
         """
         Get a mask_uid from tiled.
@@ -164,7 +178,7 @@ class MaskClient:
         ----------
         detector: string
         name: string
-        version: int, optional
+        version: int
 
         Returns
         -------
