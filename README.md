@@ -75,8 +75,8 @@ Get mask returns a uid, along with the mask.  Without specifying a version, the 
 
 
     from masks import combine_masks
-    mask1 = mask_client.get_mask('eiger4m_single_image', 'chip_mask', version=0)
-    mask2 = mask_client.get_mask('eiger4m_single_image', 'bad_pixels')
+    uid1, mask1 = mask_client.get_mask('eiger4m_single_image', 'chip_mask', version=0)
+    uid2, mask2 = mask_client.get_mask('eiger4m_single_image', 'bad_pixels')
     masks = [mask1, mask2]
     combined_mask = combine_masks(masks).compute()
 
@@ -105,5 +105,5 @@ Get mask returns a uid, along with the mask.  Without specifying a version, the 
 
 ## Testing
 
-There are several tests written in the test_sparsify.py.
+There are several tests written in `test_sparsify.py`.
 You can run the tests by typing `pytest`
