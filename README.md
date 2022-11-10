@@ -35,10 +35,10 @@ It prints the detector_name, mask_name, and version.
 
 **Register a Mask**
 
-- Version is optional and defaults to 0.
-- detector_name + mask_name + version must be unique.
-- The mask shape must match the detector shape
-- The array dtype must be bool
+Version is optional and defaults to 0.
+detector_name + mask_name + version must be unique.
+The mask shape must match the detector shape
+The array dtype must be bool
 
 
     mask = array([[False, False, False, ..., False, False, False],
@@ -49,7 +49,6 @@ It prints the detector_name, mask_name, and version.
            [False,  True,  True, ...,  True,  True, False],
            [False, False, False, ..., False, False, False]])
     
-    # Detector name, mask_name, mask
     mask_client.register_mask('eiger4m_single_image', 'chip_mask', mask)
 
 
