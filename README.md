@@ -22,7 +22,7 @@
 It prints the detector_name, mask_name, and version.
 
 
-    In [12]: mask_client.get_masks()
+    In [12]: mask_client.list_masks()
     Out[12]:
     [('eiger4m_single_image', 'pixel_mask', 0),
      ('eiger4m_single_image', 'bad_pixels', 0),
@@ -33,8 +33,12 @@ It prints the detector_name, mask_name, and version.
     
     
 
-**Register a Mask**
-Version is optional and defaults to 0.
+**R****egister a Mask**
+
+- Version is optional and defaults to 0.
+- detector_name + mask_name + version must be unique.
+- The mask shape must match the detector shape
+- The array dtype must be bool
 
 
     mask = array([[False, False, False, ..., False, False, False],
@@ -51,12 +55,13 @@ Version is optional and defaults to 0.
 
 **Get a Mask**
 Version is optional and defaults to returning the highest version number mask.
+Get mask returns a uid, along with the mask.  Without specifying a version, the mask that get_mask returns might not always be the same.  So we have to return a uid, so that we know exactly which mask we have.
 
 
-    mask_client.get_mask('eiger4m_single_image', 'chip_mask').compute()
+    uid, mask = mask_client.get_mask('eiger4m_single_image', 'chip_mask')
 
 
-    In [8]: mask
+    In [8]: mask.compute()
     Out[8]:
     array([[False, False, False, ..., False, False, False],
            [False,  True,  True, ...,  True,  True, False],
@@ -70,7 +75,7 @@ Version is optional and defaults to returning the highest version number mask.
 **Combine a list of masks.**
 
 
-    from masks import combine_mask
+    from masks import combine_masks
     mask1 = mask_client.get_mask('eiger4m_single_image', 'chip_mask', version=0)
     mask2 = mask_client.get_mask('eiger4m_single_image', 'bad_pixels')
     masks = [mask1, mask2]
@@ -101,7 +106,5 @@ Version is optional and defaults to returning the highest version number mask.
 
 ## Testing
 
-
-
-
-
+There are several tests written in the test_sparsify.py.
+You can run the tests by typing `pytest`

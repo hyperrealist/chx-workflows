@@ -140,6 +140,8 @@ def sparsify(
     # Load the images.
     images = run["primary"]["data"][detector_name].read()
 
+    # TODO: Save the detector image in the correct orientation, 
+    # so we don't have to rotate it.
     # Rotate the images if he detector is eiger500k_single_image.
     if detector_name == "eiger500K_single_image":
         images = np.rot90(images, axes=(3, 2))

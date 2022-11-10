@@ -6,7 +6,6 @@ from numpy import dtype
 from pathlib import Path
 from tiled.queries import Key
 
-# TODO: Check that the mask shape is correct when registering a mask.
 DETECTOR_SHAPES = {'eiger4m_single_image': (2167, 2070),
                    'eiger1m_single_image': (1065, 1030),
                    'eiger500K_single_image': (514, 1030)}
@@ -219,14 +218,14 @@ nod
         for uid in uids:
             del self._tiled_client[uid]
 
-    def get_masks(self):
+    def list_masks(self):
 
         """
         Get a list of the available masks.
 
         Returns
         -------
-        mask_names: list
+        mask_details: list
         """
 
         results = self._tiled_client.search(Key("spec") == "mask")
