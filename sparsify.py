@@ -5,7 +5,7 @@ import tiled
 import time
 
 from functools import reduce
-from masks import MaskClient
+from masks import MaskClient, combine_masks
 from pathlib import Path
 from prefect import Flow, Parameter, task
 from tiled.client import from_profile
@@ -146,11 +146,13 @@ def sparsify(
 
     # Get the mask.
     mask_client = MaskClient(tiled_client_sandbox)
-    masks = [mask_client.get_mask(detector_name, mask_name) 
-             for mask_name in mask_names]
+    uid_masks = [mask_client.get_mask(detector_name, mask_name)
+                 for mask_name in mask_names]
+    uids = [uid for uid, mask in uid_masks]
+    masks = [mask for uid, mask in uid_masks]
     metadata['masks_names'] = mask_names
-    metadata['mask_uids'] = mask_client.get_mask_uids(detector_name, mask_names)
-    mask = mask_client.get_composite_mask(detector_name, mask_names)
+    metadata['mask_uids'] = uids
+    mask = combine_masks(masks)
 
     # Flip the images.
     images = np.flip(images, axis=2)
