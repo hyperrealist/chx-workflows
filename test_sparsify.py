@@ -25,6 +25,17 @@ test_runs = (
     "961b07ca-2133-46f9-8337-57053baa011b", # Very dense. Working.
     "eaf4d7df-2585-460a-8d9c-5a53613782e7", # Need the correct masks.
     "e909f4a2-12e3-4521-a7a6-be2b728a826b", # Working.
+    "1bdfe080-250e-4874-b4cc-0b5acbdc99a3",
+    "2e902219-5910-434f-9c89-75d7ea46db44",
+    "4b31b18c-6207-491e-bca7-162431281a89",
+    "5f1dc5a6-8d9f-479a-b2b5-5e2fabec594e",
+    "6dff7417-6d41-4e71-ad3e-6982e838578f",
+    "7d95f576-dfec-4bc7-905d-6b801420ca48",
+    "81bcc380-d5cb-49f6-821d-4ca5ba0407e2",
+    "8a8b73b8-5b8e-4dcd-81cd-c211520dccfb",
+    "8af27b39-dd4c-4630-bdff-21af77b22227",
+    "8ffddd5b-31f7-433f-babb-a2c995fd2587",
+    "f9d3b730-1915-455e-985c-bb169fb74876",
 )
 
 
@@ -49,10 +60,10 @@ def test_get_metadata(run_uid):
         f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
     ).header_info
 
-    # TODO: figure out if these exceptions are needed.
-    # And figure out how these values get into the Multifile.
+    # TODO: Update chx_patches in tiled_site_config to get this metadata.
     exceptions = {
         "bytes",
+        "byte_count",
         "rows_end",
         "nrows",
         "rows_begin",
@@ -62,7 +73,6 @@ def test_get_metadata(run_uid):
     }
 
     assert metadata_original.keys() - metadata_new.keys() <= exceptions
-    # assert metadata_original.keys() <= metadata_new.keys()
 
     for key in metadata_original.keys() - exceptions:
         assert metadata_new[key] == metadata_original[key]
@@ -93,8 +103,8 @@ def test_multifile(run_uid):
     Make sure that the new multifile matches the original multifile.
     """
     original_file = f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
-    new_file = f"/tmp/{processed_uid}.cmp"
     processed_uid = sparsify(run_uid)
+    new_file = f"/tmp/{processed_uid}.cmp"
     processed_data = tiled_client_sandbox[processed_uid]
     processed_data.export(new_file, format='application/x-eiger-multifile')
     assert filecmp.cmp(original_file, new_file)
