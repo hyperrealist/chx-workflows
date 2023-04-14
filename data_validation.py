@@ -3,13 +3,11 @@ import time as ttime
 from tiled.client import from_profile
 
 
-tiled_client = from_profile("nsls2", username=None)
-
-
 @task(retries=2, retry_delay_seconds=10)
-def read_all_streams(beamline_acronym, uid):
+def read_all_streams(uid):
+    tiled_client = from_profile("nsls2", username=None)
     logger = get_run_logger()
-    run = tiled_client[beamline_acronym]["raw"][uid]
+    run = tiled_client['chx']["raw"][uid]
     logger.info(f"Validating uid {run.start['uid']}")
     start_time = ttime.monotonic()
     for stream in run:
@@ -24,5 +22,5 @@ def read_all_streams(beamline_acronym, uid):
 
 
 @flow
-def general_data_validation(beamline_acronym, uid):
-    read_all_streams(beamline_acronym, uid)
+def data_validation(uid):
+    read_all_streams(uid)
