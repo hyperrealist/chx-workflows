@@ -11,6 +11,11 @@ DETECTOR_SHAPES = {'eiger4m_single_image': (2167, 2070),
                    'eiger500K_single_image': (514, 1030)}
 
 
+class MaskNotFound(Exception):
+    pass
+class MaskNotUnique(Exception):
+    pass
+
 def load_array_from_file(filename):
 
     """
@@ -149,11 +154,16 @@ class MaskClient:
                                     .search(Key('detector') == detector)
 
         if version is None:
-            uid, mask = max(results.items(), 
+            if len(results) == 0:
+                raise MaskNotFound(f"detector={detector}, name={name}, version={version}")
+            uid, mask = max(results.items(),
                             key=lambda item: item[1].metadata['version'])
         else:
             results = results.search(Key('version') == version)
-            assert len(results) == 1
+            if len(results) == 0:
+                raise MaskNotFound(f"detector={detector}, name={name}, version={version}")
+            if len(results) > 1:
+                raise MaskNotUnique(f"{len(results)} masks found that matched detector={detector}, name={name}, version={version}")
             uid, mask = list(results.items())[0]
 
         return uid, mask.read()

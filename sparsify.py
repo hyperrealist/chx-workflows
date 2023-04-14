@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, "/nsls2/data/chx/shared/workflows")
+
 import numpy as np
 import prefect
 import sparse
@@ -10,6 +13,8 @@ from pathlib import Path
 from prefect import Flow, Parameter, task
 from tiled.client import from_profile
 from tiled.structures.sparse import COOStructure
+
+
 
 EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 
@@ -109,10 +114,10 @@ def write_sparse_chunk(data, dataset_id=None, block_info=None, dataset=None):
     # to tiled.
     return data
 
-
+# TODO: Change "chip_mask" back to "pixel_mask"
 def sparsify(
-    ref, 
-    mask_names=["pixel_mask", "chip_mask", "bad_pixels", "jul11_2022_4m_saxs"]
+    ref,
+    mask_names=["chip_mask"]
 ):
     """
     Performs sparsification.
@@ -130,6 +135,8 @@ def sparsify(
     dataset_uid: string
         The uid of the resulting dataset.
     """
+    logger = prefect.context.get("logger")
+
     # Get the BlueskyRun from Tiled.
     run = tiled_client_chx[ref]
 
@@ -140,7 +147,7 @@ def sparsify(
     # Load the images.
     images = run["primary"]["data"][detector_name].read()
 
-    # TODO: Save the detector image in the correct orientation, 
+    # TODO: Save the detector image in the correct orientation,
     # so we don't have to rotate it.
     # Rotate the images if he detector is eiger500k_single_image.
     if detector_name == "eiger500K_single_image":
@@ -184,6 +191,7 @@ def sparsify(
         write_sparse_chunk, dataset_id=dataset_id, dataset=dataset
     ).compute()
 
+    logger.info(f"dataset_id: {dataset_id}")
     return dataset_id
 
 
@@ -195,5 +203,6 @@ with Flow("sparsify") as flow:
     logger.info(f"sparse: {sparse.__version__}")
     logger.info(f"profiles: {tiled.profiles.list_profiles()['nsls2']}")
     ref = Parameter("ref")
-    processed_uid = task(sparsify)(ref)
-    logger.info(f"Processed_uid: {processed_uid.result}")
+    # TODO: Change "chip_mask" back to "pixel_mask"
+    mask_names = Parameter("mask_names", default=["chip_mask"])
+    task(sparsify)(ref,mask_names=mask_names)

@@ -8,7 +8,6 @@ from chx_compress.io.multifile.multifile import multifile_reader
 from pandas import Timestamp
 from pathlib import Path
 from sparsify import get_metadata, sparsify
-from masks import MaskClient
 from tiled.client import from_profile
 from tiled.queries import Key
 
@@ -16,7 +15,6 @@ DATA_DIRECTORY = Path("/nsls2/data/chx/legacy/Compressed_Data")
 tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
 tiled_client_chx = tiled_client["raw"]
 tiled_client_sandbox = tiled_client["sandbox"]
-mask_client = MaskClient(tiled_client_sandbox)
 
 run1 = tiled_client_chx["d85d157f-57d9-4649-9b65-0d3b9f754e01"]
 run2 = tiled_client_chx["e909f4a2-12e3-4521-a7a6-be2b728a826b"]
