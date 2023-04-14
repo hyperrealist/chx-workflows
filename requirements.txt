@@ -1,1 +1,5 @@
 git+https://github.com/NSLS-II-CHX/chx_compress
+tiled
+numpy
+msgpack
+appdirs
