@@ -2,7 +2,6 @@ import sys
 sys.path.insert(0, "/nsls2/data/chx/shared/workflows")
 
 import numpy as np
-import prefect
 import sparse
 import tiled
 import time
@@ -10,7 +9,7 @@ import time
 from functools import reduce
 from masks import MaskClient, combine_masks
 from pathlib import Path
-from prefect import Flow, Parameter, task
+from prefect import flow, task, get_run_logger
 from tiled.client import from_profile
 from tiled.structures.sparse import COOStructure
 
@@ -115,6 +114,7 @@ def write_sparse_chunk(data, dataset_id=None, block_info=None, dataset=None):
     return data
 
 # TODO: Change "chip_mask" back to "pixel_mask"
+@task
 def sparsify(
     ref,
     mask_names=["chip_mask"]
@@ -135,7 +135,7 @@ def sparsify(
     dataset_uid: string
         The uid of the resulting dataset.
     """
-    logger = prefect.context.get("logger")
+    logger = get_run_logger()
 
     # Get the BlueskyRun from Tiled.
     run = tiled_client_chx[ref]
@@ -197,12 +197,11 @@ def sparsify(
 
 # Make the Prefect Flow.
 # A separate command is needed to register it with the Prefect server.
-with Flow("sparsify") as flow:
-    logger = prefect.context.get("logger")
+@flow
+def sparsify_flow(ref, mask_names=["chip_mask"]):
+    logger = get_run_logger()
     logger.info(f"tiled: {tiled.__version__}")
     logger.info(f"sparse: {sparse.__version__}")
     logger.info(f"profiles: {tiled.profiles.list_profiles()['nsls2']}")
-    ref = Parameter("ref")
     # TODO: Change "chip_mask" back to "pixel_mask"
-    mask_names = Parameter("mask_names", default=["chip_mask"])
-    task(sparsify)(ref,mask_names=mask_names)
+    sparsify(ref,mask_names=mask_names)

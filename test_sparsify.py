@@ -11,6 +11,14 @@ from sparsify import get_metadata, sparsify
 from masks import MaskClient
 from tiled.client import from_profile
 from tiled.queries import Key
+from prefect.testing.utilities import prefect_test_harness
+
+
+@pytest.fixture(autouse=True, scope="session")
+def prefect_test_fixture():
+    with prefect_test_harness():
+        yield
+
 
 DATA_DIRECTORY = Path("/nsls2/data/chx/legacy/Compressed_Data")
 tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
