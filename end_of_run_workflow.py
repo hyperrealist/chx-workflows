@@ -1,6 +1,4 @@
-import prefect
 from prefect import task, flow, get_run_logger
-from prefect.tasks.prefect import create_flow_run
 from data_validation import data_validation
 
 
