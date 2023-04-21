@@ -22,7 +22,6 @@ tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
 tiled_client_chx = tiled_client["raw"]
 tiled_client_sandbox = tiled_client["sandbox"]
 
-
 def get_metadata(run):
     """
     Collect the BlueskyRun metadata.

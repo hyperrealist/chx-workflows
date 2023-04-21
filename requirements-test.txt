@@ -1,0 +1,3 @@
+dictdiffer
+pytest
+pandas
