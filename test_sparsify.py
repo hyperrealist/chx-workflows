@@ -11,6 +11,7 @@ from sparsify import get_metadata, sparsify
 from masks import MaskClient
 from tiled.client import from_profile
 from tiled.queries import Key
+from prefect.testing.utilities import prefect_test_harness
 
 DATA_DIRECTORY = Path("/nsls2/data/chx/legacy/Compressed_Data")
 tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
@@ -48,16 +49,22 @@ def read_frame(multifile, image_index):
     return image_array.astype('uint16')
 
 
+@pytest.fixture(autouse=True, scope="session")
+def prefect_test_fixture():
+    with prefect_test_harness():
+        yield
+
+
 @pytest.mark.parametrize("run_uid", test_runs)
 def test_get_metadata(run_uid):
     """
     Check that the metadata from get_metadata matches the original
     metadata.
     """
- 
+
     run = tiled_client_chx[run_uid]
     metadata_new = get_metadata(run)
-    
+
     original_data = multifile_reader(
         f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
     ).header_info
@@ -83,14 +90,14 @@ def test_get_metadata(run_uid):
 @pytest.mark.parametrize("run_uid", test_runs)
 def test_sparsify(run_uid):
     """
-    Make sure that the processed data from sparisfy  
+    Make sure that the processed data from sparisfy
     matches the original proccesed data.
     """
     original_data = multifile_reader(
         f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
     )
 
-    processed_uid = sparsify(run_uid)
+    processed_uid = sparsify.fn(run_uid)
     new_data = tiled_client_sandbox[processed_uid]
 
     for frame_number in range(new_data.shape[1]):
@@ -105,7 +112,7 @@ def test_multifile(run_uid):
     Make sure that the new multifile matches the original multifile.
     """
     original_file = f"{DATA_DIRECTORY}/uid_{run_uid}.cmp"
-    processed_uid = sparsify(run_uid)
+    processed_uid = sparsify.fn(run_uid)
     new_file = f"/tmp/{processed_uid}.cmp"
     processed_data = tiled_client_sandbox[processed_uid]
     processed_data.export(new_file, format='application/x-eiger-multifile')
