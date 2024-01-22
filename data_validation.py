@@ -5,7 +5,7 @@ from tiled.client import from_profile
 
 @task(retries=2, retry_delay_seconds=10)
 def read_all_streams(uid):
-    tiled_client = from_profile("nsls2", username=None)
+    tiled_client = from_profile("nsls2")
     logger = get_run_logger()
     run = tiled_client['chx']["raw"][uid]
     logger.info(f"Validating uid {run.start['uid']}")
