@@ -14,7 +14,7 @@ from tiled.queries import Key
 from prefect.testing.utilities import prefect_test_harness
 
 DATA_DIRECTORY = Path("/nsls2/data/chx/legacy/Compressed_Data")
-tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
+tiled_client = from_profile("nsls2", "dask")["chx"]
 tiled_client_chx = tiled_client["raw"]
 tiled_client_sandbox = tiled_client["sandbox"]
 mask_client = MaskClient(tiled_client_sandbox)

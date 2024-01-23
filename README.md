@@ -14,7 +14,7 @@
 
     from masks import MaskClient
     
-    sandbox = from_profile("nsls2", "dask", username=None)\["chx"\]["sandbox"]
+    sandbox = from_profile("nsls2", "dask")\["chx"\]["sandbox"]
     mask_clilent = MaskClient(sandbox)
 
 

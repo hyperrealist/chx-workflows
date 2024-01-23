@@ -18,7 +18,7 @@ from tiled.structures.sparse import COOStructure
 EXPORT_PATH = Path("/nsls2/data/dssi/scratch/prefect-outputs/chx/")
 
 # distributed_client = distributed.Client(n_workers=1, threads_per_worker=1, processes=False)
-tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
+tiled_client = from_profile("nsls2", "dask")["chx"]
 tiled_client_chx = tiled_client["raw"]
 tiled_client_sandbox = tiled_client["sandbox"]
 
@@ -96,7 +96,7 @@ def write_sparse_chunk(data, dataset_id=None, block_info=None, dataset=None):
 
     if block_info:
         if dataset is None:
-            tiled_client = from_profile("nsls2", "dask", username=None)["chx"]
+            tiled_client = from_profile("nsls2", "dask")["chx"]
             tiled_client_sandbox = tiled_client["sandbox"]
             dataset = tiled_client_sandbox[dataset_id]
 
