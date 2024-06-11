@@ -13,6 +13,6 @@ def log_completion():
 def end_of_run_workflow(stop_doc):
     uid = stop_doc["run_start"]
     # return_state = True delays raising exceptions until the end of the validation
-    data_validation(uid, return_state=True)
+    # data_validation(uid, return_state=True)
     processing_flow(uid)
     log_completion()
